@@ -27,3 +27,8 @@ Thumbs.db
 # ── Variables d'environnement (alternative à config.json) ────────────────────
 .env
 .env.*
+
+# SQLite database files
+data/bot.db
+data/bot.db-wal
+data/bot.db-shm

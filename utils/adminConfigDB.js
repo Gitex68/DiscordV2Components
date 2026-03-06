@@ -1,91 +1,40 @@
-// utils/adminConfigDB.js
-// Persistance JSON pour la configuration des commandes admin par guilde.
-//
-// Structure :
-//   data.guilds[guildId] = {
-//     adminRoleId: string|null,   // Rôle ayant accès aux commandes adminOnly
-//                                 // (en plus des membres avec ManageGuild)
-//     muteRoleId:  string|null,   // Rôle attribué lors d'un .mute (méthode "rôle")
-//     muteMode:    'timeout'|'role', // Méthode de mute : timeout Discord ou rôle custom
-//   }
-
+// utils/adminConfigDB.js — SQLite
 'use strict';
 
-const fs   = require('fs');
-const path = require('path');
-
-const DB_PATH = path.join(__dirname, '../data/admin_config.json');
-
-let data = { guilds: {} };
-
-function load() {
-  try {
-    if (fs.existsSync(DB_PATH)) {
-      data = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
-    }
-  } catch (e) {
-    console.error('[AdminConfigDB] Erreur lecture:', e.message);
-    data = { guilds: {} };
-  }
-}
-
-function save() {
-  try {
-    fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2), 'utf8');
-  } catch (e) {
-    console.error('[AdminConfigDB] Erreur sauvegarde:', e.message);
-  }
-}
+const sql = require('./db.js');
 
 const DEFAULT_CONFIG = {
   adminRoleId: null,
   muteRoleId:  null,
-  muteMode:    'timeout', // 'timeout' = Discord timeout | 'role' = attribution d'un rôle
+  muteMode:    'timeout',
 };
 
-function ensureGuild(guildId) {
-  if (!data.guilds[guildId]) {
-    data.guilds[guildId] = { ...DEFAULT_CONFIG };
-    save();
-  }
-  const cfg = data.guilds[guildId];
-  if (cfg.adminRoleId === undefined) cfg.adminRoleId = null;
-  if (cfg.muteRoleId  === undefined) cfg.muteRoleId  = null;
-  if (cfg.muteMode    === undefined) cfg.muteMode    = 'timeout';
+const _ins = sql.prepare(
+  'INSERT OR IGNORE INTO admin_config (guild_id, admin_role_id, mute_role_id, mute_mode) VALUES (?, ?, ?, ?)'
+);
+const _sel = sql.prepare('SELECT * FROM admin_config WHERE guild_id = ?');
+
+function _ensure(guildId) {
+  _ins.run(guildId, null, null, 'timeout');
 }
 
 function getConfig(guildId) {
-  ensureGuild(guildId);
-  return data.guilds[guildId];
+  _ensure(guildId);
+  const row = _sel.get(guildId);
+  return {
+    adminRoleId: row.admin_role_id ?? null,
+    muteRoleId:  row.mute_role_id  ?? null,
+    muteMode:    row.mute_mode     ?? 'timeout',
+  };
 }
 
-function set(guildId, key, value) {
-  ensureGuild(guildId);
-  data.guilds[guildId][key] = value;
-  save();
+const COL_MAP = { adminRoleId: 'admin_role_id', muteRoleId: 'mute_role_id', muteMode: 'mute_mode' };
+
+function setConfig(guildId, key, value) {
+  _ensure(guildId);
+  const col = COL_MAP[key];
+  if (!col) throw new Error('[adminConfigDB] Clé inconnue : ' + key);
+  sql.prepare('UPDATE admin_config SET ' + col + ' = ? WHERE guild_id = ?').run(value ?? null, guildId);
 }
 
-function reset(guildId) {
-  data.guilds[guildId] = { ...DEFAULT_CONFIG };
-  save();
-}
-
-/**
- * Vérifie si un GuildMember a accès aux commandes admin.
- * Accès accordé si :
- *   - Il a la permission ManageGuild (admin Discord natif), OU
- *   - Il possède le rôle adminRoleId configuré pour cette guilde
- * @param {import('discord.js').GuildMember} member
- * @returns {boolean}
- */
-function hasAdminAccess(member) {
-  if (!member) return false;
-  if (member.permissions.has('ManageGuild')) return true;
-  const cfg = getConfig(member.guild.id);
-  if (cfg.adminRoleId && member.roles.cache.has(cfg.adminRoleId)) return true;
-  return false;
-}
-
-load();
-
-module.exports = { getConfig, set, reset, hasAdminAccess, DEFAULT_CONFIG };
+module.exports = { getConfig, setConfig, DEFAULT_CONFIG };

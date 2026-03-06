@@ -1,378 +1,302 @@
-// activity/activityDB.js
-// Persistance JSON pour les statistiques d'activité
-// Structure :
-//   data.guilds[guildId] = {
-//     voice        : { [userId]: { [channelId]: totalMs } }          ← cumulatif
-//     messages     : { [userId]: { [channelId]: count } }            ← cumulatif
-//     games        : { [userId]: { [gameName]: totalMs } }           ← cumulatif
-//     msgDays      : { [YYYY-MM-DD]: count }                         ← messages serveur/jour
-//     userMsgDays  : { [userId]: { [YYYY-MM-DD]: count } }           ← messages user/jour
-//     voiceDays    : { [YYYY-MM-DD]: { [channelId]: ms } }           ← vocal serveur/jour
-//     userVoiceDays: { [userId]: { [YYYY-MM-DD]: { [channelId]: ms } } } ← vocal user/jour
-//     gameDays     : { [YYYY-MM-DD]: { [gameName]: ms } }            ← jeux serveur/jour
-//     userGameDays : { [userId]: { [YYYY-MM-DD]: { [gameName]: ms } } }  ← jeux user/jour
-//   }
-//   data.voiceSessions[guildId][userId] = { channelId, startedAt }
-//   data.gameSessions[guildId][userId]  = { game, startedAt }
+// activity/activityDB.js — SQLite
+'use strict';
 
-const fs   = require('fs');
-const path = require('path');
+const sql = require('../utils/db.js');
 
-const DB_PATH = path.join(__dirname, 'activity_data.json');
+// ─── Prepared statements ─────────────────────────────────────────────────────
 
-let data = { guilds: {}, voiceSessions: {}, gameSessions: {} };
+// voice cumulative
+const _voiceUpsert = sql.prepare(`
+  INSERT INTO activity_voice (guild_id, user_id, channel_id, total_ms)
+  VALUES (?, ?, ?, ?)
+  ON CONFLICT(guild_id, user_id, channel_id) DO UPDATE SET total_ms = total_ms + excluded.total_ms
+`);
+const _voiceSel    = sql.prepare('SELECT channel_id, total_ms FROM activity_voice WHERE guild_id = ? AND user_id = ?');
+const _voiceRank   = sql.prepare('SELECT user_id, SUM(total_ms) AS total FROM activity_voice WHERE guild_id = ? GROUP BY user_id');
 
-// ─── Chargement / sauvegarde ──────────────────────────────────────────────────
-function load() {
-  try {
-    if (fs.existsSync(DB_PATH))
-      data = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
-  } catch (e) {
-    console.error('[ActivityDB] Erreur lecture:', e.message);
-    data = { guilds: {}, voiceSessions: {}, gameSessions: {} };
-  }
-}
+// voice days (server)
+const _vdayUpsert  = sql.prepare(`
+  INSERT INTO activity_voice_days_server (guild_id, date, channel_id, total_ms)
+  VALUES (?, ?, ?, ?)
+  ON CONFLICT(guild_id, date, channel_id) DO UPDATE SET total_ms = total_ms + excluded.total_ms
+`);
+// voice days (user)
+const _uvdayUpsert = sql.prepare(`
+  INSERT INTO activity_voice_days (guild_id, user_id, date, channel_id, total_ms)
+  VALUES (?, ?, ?, ?, ?)
+  ON CONFLICT(guild_id, user_id, date, channel_id) DO UPDATE SET total_ms = total_ms + excluded.total_ms
+`);
 
-let _saveTimer = null;
-function save() {
-  clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(() => {
-    try { fs.writeFileSync(DB_PATH, JSON.stringify(data), 'utf8'); }
-    catch (e) { console.error('[ActivityDB] Erreur écriture:', e.message); }
-  }, 2_000);
-}
+// voice sessions
+const _vsesIns  = sql.prepare('INSERT OR REPLACE INTO activity_voice_sessions (guild_id, user_id, channel_id, started_at) VALUES (?, ?, ?, ?)');
+const _vsesSel  = sql.prepare('SELECT * FROM activity_voice_sessions WHERE guild_id = ? AND user_id = ?');
+const _vsesDel  = sql.prepare('DELETE FROM activity_voice_sessions WHERE guild_id = ? AND user_id = ?');
 
-// ─── Helpers structure ────────────────────────────────────────────────────────
-function guild(gid) {
-  if (!data.guilds[gid])
-    data.guilds[gid] = { voice: {}, messages: {}, games: {}, msgDays: {}, userMsgDays: {},
-                         voiceDays: {}, userVoiceDays: {}, gameDays: {}, userGameDays: {} };
-  // migrations douces
-  if (!data.guilds[gid].userMsgDays)   data.guilds[gid].userMsgDays   = {};
-  if (!data.guilds[gid].voiceDays)     data.guilds[gid].voiceDays     = {};
-  if (!data.guilds[gid].userVoiceDays) data.guilds[gid].userVoiceDays = {};
-  if (!data.guilds[gid].gameDays)      data.guilds[gid].gameDays      = {};
-  if (!data.guilds[gid].userGameDays)  data.guilds[gid].userGameDays  = {};
-  return data.guilds[gid];
-}
-function ensureObj(obj, ...keys) {
-  let cur = obj;
-  for (const k of keys) { if (!cur[k]) cur[k] = {}; cur = cur[k]; }
-  return cur;
-}
+// messages cumulative
+const _msgUpsert = sql.prepare(`
+  INSERT INTO activity_messages (guild_id, user_id, channel_id, count)
+  VALUES (?, ?, ?, 1)
+  ON CONFLICT(guild_id, user_id, channel_id) DO UPDATE SET count = count + 1
+`);
+const _msgSel   = sql.prepare('SELECT channel_id, count FROM activity_messages WHERE guild_id = ? AND user_id = ?');
+const _msgRank  = sql.prepare('SELECT user_id, SUM(count) AS total FROM activity_messages WHERE guild_id = ? GROUP BY user_id');
 
-// ─── VOCAL ───────────────────────────────────────────────────────────────────
+// msg days (server)
+const _mdayUpsert = sql.prepare(`
+  INSERT INTO activity_msg_days_server (guild_id, date, count)
+  VALUES (?, ?, 1)
+  ON CONFLICT(guild_id, date) DO UPDATE SET count = count + 1
+`);
+// msg days (user)
+const _umdayUpsert = sql.prepare(`
+  INSERT INTO activity_msg_days (guild_id, user_id, date, count)
+  VALUES (?, ?, ?, 1)
+  ON CONFLICT(guild_id, user_id, date) DO UPDATE SET count = count + 1
+`);
+
+// games cumulative
+const _gameUpsert = sql.prepare(`
+  INSERT INTO activity_games (guild_id, user_id, game_name, total_ms)
+  VALUES (?, ?, ?, ?)
+  ON CONFLICT(guild_id, user_id, game_name) DO UPDATE SET total_ms = total_ms + excluded.total_ms
+`);
+const _gameSel   = sql.prepare('SELECT game_name, total_ms FROM activity_games WHERE guild_id = ? AND user_id = ?');
+const _gameRank  = sql.prepare('SELECT game_name, SUM(total_ms) AS total FROM activity_games WHERE guild_id = ? GROUP BY game_name');
+const _playerRank = sql.prepare('SELECT user_id, SUM(total_ms) AS total FROM activity_games WHERE guild_id = ? GROUP BY user_id');
+
+// game days (server)
+const _gdayUpsert = sql.prepare(`
+  INSERT INTO activity_game_days (guild_id, user_id, date, game_name, total_ms)
+  VALUES (?, ?, ?, ?, ?)
+  ON CONFLICT(guild_id, user_id, date, game_name) DO UPDATE SET total_ms = total_ms + excluded.total_ms
+`);
+
+// game sessions
+const _gsesIns = sql.prepare('INSERT OR REPLACE INTO activity_game_sessions (guild_id, user_id, game_name, started_at) VALUES (?, ?, ?, ?)');
+const _gsesSel = sql.prepare('SELECT * FROM activity_game_sessions WHERE guild_id = ? AND user_id = ?');
+const _gsesDel = sql.prepare('DELETE FROM activity_game_sessions WHERE guild_id = ? AND user_id = ?');
+
+// ─── VOCAL ────────────────────────────────────────────────────────────────────
+
 function voiceStart(guildId, userId, channelId) {
-  ensureObj(data.voiceSessions, guildId);
-  data.voiceSessions[guildId][userId] = { channelId, startedAt: Date.now() };
-  save();
+  _vsesIns.run(guildId, userId, channelId, Date.now());
 }
 
 function voiceEnd(guildId, userId) {
-  const session = data.voiceSessions[guildId]?.[userId];
-  if (!session) return;
-  const ms    = Date.now() - session.startedAt;
+  const ses = _vsesSel.get(guildId, userId);
+  if (!ses) return;
+  const ms    = Date.now() - ses.started_at;
   const today = new Date().toISOString().slice(0, 10);
-  const g     = guild(guildId);
 
-  // Cumulatif
-  ensureObj(g.voice, userId);
-  g.voice[userId][session.channelId] = (g.voice[userId][session.channelId] || 0) + ms;
-
-  // Bucket serveur/jour
-  ensureObj(g.voiceDays, today);
-  g.voiceDays[today][session.channelId] = (g.voiceDays[today][session.channelId] || 0) + ms;
-
-  // Bucket user/jour
-  ensureObj(g.userVoiceDays, userId, today);
-  g.userVoiceDays[userId][today][session.channelId] =
-    (g.userVoiceDays[userId][today][session.channelId] || 0) + ms;
-
-  delete data.voiceSessions[guildId][userId];
-  save();
+  _voiceUpsert.run(guildId, userId, ses.channel_id, ms);
+  _vdayUpsert.run(guildId, today, ses.channel_id, ms);
+  _uvdayUpsert.run(guildId, userId, today, ses.channel_id, ms);
+  _vsesDel.run(guildId, userId);
 }
 
-/** Renvoie { [channelId]: totalMs } pour un user */
 function getVoice(guildId, userId) {
-  return guild(guildId).voice[userId] || {};
+  const rows = _voiceSel.all(guildId, userId);
+  const out = {};
+  for (const r of rows) out[r.channel_id] = r.total_ms;
+  return out;
 }
 
-/** Renvoie { [userId]: totalMs } (toutes chaînes confondues) — classement serveur */
 function getVoiceRanking(guildId) {
-  const voiceMap = guild(guildId).voice;
-  const totals = {};
-  for (const [uid, channels] of Object.entries(voiceMap)) {
-    totals[uid] = Object.values(channels).reduce((a, b) => a + b, 0);
-  }
-  return totals;
+  const out = {};
+  for (const r of _voiceRank.all(guildId)) out[r.user_id] = r.total;
+  return out;
 }
 
 // ─── MESSAGES ─────────────────────────────────────────────────────────────────
+
 function addMessage(guildId, userId, channelId) {
-  const g = guild(guildId);
-  ensureObj(g.messages, userId);
-  g.messages[userId][channelId] = (g.messages[userId][channelId] || 0) + 1;
-
-  // compteur par jour (serveur global)
   const today = new Date().toISOString().slice(0, 10);
-  g.msgDays[today] = (g.msgDays[today] || 0) + 1;
-
-  // compteur par jour (par user — pour graphique personnel)
-  ensureObj(g.userMsgDays, userId);
-  g.userMsgDays[userId][today] = (g.userMsgDays[userId][today] || 0) + 1;
-
-  save();
+  _msgUpsert.run(guildId, userId, channelId);
+  _mdayUpsert.run(guildId, today);
+  _umdayUpsert.run(guildId, userId, today);
 }
 
-/** { [channelId]: count } pour un user */
 function getMessages(guildId, userId) {
-  return guild(guildId).messages[userId] || {};
+  const out = {};
+  for (const r of _msgSel.all(guildId, userId)) out[r.channel_id] = r.count;
+  return out;
 }
 
-/** { [userId]: total } — classement */
 function getMessageRanking(guildId) {
-  const msgMap = guild(guildId).messages;
-  const totals = {};
-  for (const [uid, channels] of Object.entries(msgMap)) {
-    totals[uid] = Object.values(channels).reduce((a, b) => a + b, 0);
-  }
-  return totals;
+  const out = {};
+  for (const r of _msgRank.all(guildId)) out[r.user_id] = r.total;
+  return out;
 }
 
 // ─── JEUX ─────────────────────────────────────────────────────────────────────
+
 function gameStart(guildId, userId, gameName) {
-  ensureObj(data.gameSessions, guildId);
-  // Si une session précédente existe, la fermer d'abord
-  gameEnd(guildId, userId);
-  data.gameSessions[guildId][userId] = { game: gameName, startedAt: Date.now() };
-  save();
+  gameEnd(guildId, userId); // ferme session précédente si existe
+  _gsesIns.run(guildId, userId, gameName, Date.now());
 }
 
 function gameEnd(guildId, userId) {
-  const session = data.gameSessions[guildId]?.[userId];
-  if (!session) return;
-  const ms = Date.now() - session.startedAt;
-  if (ms < 60_000) { // ignorer < 1 min
-    delete data.gameSessions[guildId][userId];
-    return;
-  }
+  const ses = _gsesSel.get(guildId, userId);
+  if (!ses) return;
+  const ms = Date.now() - ses.started_at;
+  if (ms < 60_000) { _gsesDel.run(guildId, userId); return; }
   const today = new Date().toISOString().slice(0, 10);
-  const g     = guild(guildId);
-
-  // Cumulatif
-  ensureObj(g.games, userId);
-  g.games[userId][session.game] = (g.games[userId][session.game] || 0) + ms;
-
-  // Bucket serveur/jour
-  ensureObj(g.gameDays, today);
-  g.gameDays[today][session.game] = (g.gameDays[today][session.game] || 0) + ms;
-
-  // Bucket user/jour
-  ensureObj(g.userGameDays, userId, today);
-  g.userGameDays[userId][today][session.game] =
-    (g.userGameDays[userId][today][session.game] || 0) + ms;
-
-  delete data.gameSessions[guildId][userId];
-  save();
+  _gameUpsert.run(guildId, userId, ses.game_name, ms);
+  _gdayUpsert.run(guildId, userId, today, ses.game_name, ms);
+  _gsesDel.run(guildId, userId);
 }
 
-/** { [gameName]: totalMs } pour un user */
 function getGames(guildId, userId) {
-  return guild(guildId).games[userId] || {};
+  const out = {};
+  for (const r of _gameSel.all(guildId, userId)) out[r.game_name] = r.total_ms;
+  return out;
 }
 
-/** { [gameName]: totalMs } — top jeux du serveur */
 function getGameRankingServer(guildId) {
-  const gamesMap = guild(guildId).games;
-  const totals   = {};
-  for (const userGames of Object.values(gamesMap)) {
-    for (const [game, ms] of Object.entries(userGames)) {
-      totals[game] = (totals[game] || 0) + ms;
-    }
-  }
-  return totals;
+  const out = {};
+  for (const r of _gameRank.all(guildId)) out[r.game_name] = r.total;
+  return out;
 }
 
-/** { [userId]: totalMs (tous jeux confondus) } — classement joueurs */
 function getPlayerRanking(guildId) {
-  const gamesMap = guild(guildId).games;
-  const totals   = {};
-  for (const [uid, userGames] of Object.entries(gamesMap)) {
-    totals[uid] = Object.values(userGames).reduce((a, b) => a + b, 0);
-  }
-  return totals;
+  const out = {};
+  for (const r of _playerRank.all(guildId)) out[r.user_id] = r.total;
+  return out;
 }
 
-// ─── LECTURES PAR PÉRIODE ────────────────────────────────────────────────────
-// days = 0 → tout le cumulatif ; sinon N derniers jours depuis les buckets /jour
+// ─── LECTURES PAR PÉRIODE ─────────────────────────────────────────────────────
 
-/** { [channelId]: ms } pour un user sur N jours (0 = tout) */
-function getVoicePeriod(guildId, userId, days) {
-  if (!days) return getVoice(guildId, userId);
-  const g   = guild(guildId);
-  const map = g.userVoiceDays[userId] || {};
-  return _sumDays(map, days);
-}
-
-/** { [userId]: ms } classement vocal serveur sur N jours */
-function getVoiceRankingPeriod(guildId, days) {
-  if (!days) return getVoiceRanking(guildId);
-  const g      = guild(guildId);
-  const totals = {};
-  const cutoff = _cutoffDate(days);
-  for (const [uid, dayMap] of Object.entries(g.userVoiceDays || {})) {
-    for (const [date, channels] of Object.entries(dayMap)) {
-      if (date < cutoff) continue;
-      for (const [ch, ms] of Object.entries(channels)) {
-        totals[uid] = (totals[uid] || 0) + ms;
-      }
-    }
-  }
-  return totals;
-}
-
-/** { [channelId]: count } messages pour un user sur N jours */
-function getMessagesPeriod(guildId, userId, days) {
-  if (!days) return getMessages(guildId, userId);
-  const g      = guild(guildId);
-  const map    = g.userMsgDays[userId] || {};
-  const cutoff = _cutoffDate(days);
-  const totals = {};
-  // userMsgDays = { date: count } (pas par salon) — on agrège sur msgDays par user
-  // Note: on retourne un total global (pas par salon) car msgDays n'est pas décomposé par salon
-  let total = 0;
-  for (const [date, count] of Object.entries(map)) {
-    if (date >= cutoff) total += count;
-  }
-  return { total };   // pseudo-map {total: n} pour compatibilité
-}
-
-/** Total messages user sur N jours */
-function getUserMsgTotal(guildId, userId, days) {
-  if (!days) {
-    const m = getMessages(guildId, userId);
-    return Object.values(m).reduce((a, b) => a + b, 0);
-  }
-  const g      = guild(guildId);
-  const map    = g.userMsgDays[userId] || {};
-  const cutoff = _cutoffDate(days);
-  return Object.entries(map)
-    .filter(([d]) => d >= cutoff)
-    .reduce((a, [, n]) => a + n, 0);
-}
-
-/** { [userId]: count } classement messages sur N jours */
-function getMessageRankingPeriod(guildId, days) {
-  if (!days) return getMessageRanking(guildId);
-  const g      = guild(guildId);
-  const cutoff = _cutoffDate(days);
-  const totals = {};
-  for (const [uid, dayMap] of Object.entries(g.userMsgDays || {})) {
-    for (const [date, count] of Object.entries(dayMap)) {
-      if (date >= cutoff) totals[uid] = (totals[uid] || 0) + count;
-    }
-  }
-  return totals;
-}
-
-/** { [gameName]: ms } pour un user sur N jours */
-function getGamesPeriod(guildId, userId, days) {
-  if (!days) return getGames(guildId, userId);
-  const g   = guild(guildId);
-  const map = g.userGameDays[userId] || {};
-  return _sumDaysNested(map, days);
-}
-
-/** { [gameName]: ms } top jeux serveur sur N jours */
-function getGameRankingServerPeriod(guildId, days) {
-  if (!days) return getGameRankingServer(guildId);
-  const g      = guild(guildId);
-  const cutoff = _cutoffDate(days);
-  const totals = {};
-  for (const [, dayMap] of Object.entries(g.userGameDays || {})) {
-    for (const [date, games] of Object.entries(dayMap)) {
-      if (date < cutoff) continue;
-      for (const [game, ms] of Object.entries(games)) {
-        totals[game] = (totals[game] || 0) + ms;
-      }
-    }
-  }
-  return totals;
-}
-
-/** { [userId]: ms } classement joueurs sur N jours */
-function getPlayerRankingPeriod(guildId, days) {
-  if (!days) return getPlayerRanking(guildId);
-  const g      = guild(guildId);
-  const cutoff = _cutoffDate(days);
-  const totals = {};
-  for (const [uid, dayMap] of Object.entries(g.userGameDays || {})) {
-    for (const [date, games] of Object.entries(dayMap)) {
-      if (date < cutoff) continue;
-      for (const ms of Object.values(games)) {
-        totals[uid] = (totals[uid] || 0) + ms;
-      }
-    }
-  }
-  return totals;
-}
-
-// ─── Helpers internes ────────────────────────────────────────────────────────
 function _cutoffDate(days) {
   const d = new Date();
   d.setDate(d.getDate() - days + 1);
   return d.toISOString().slice(0, 10);
 }
 
-/** Somme { date: { key: ms } } → { key: ms } sur N jours */
-function _sumDaysNested(dayMap, days) {
+function getVoicePeriod(guildId, userId, days) {
+  if (!days) return getVoice(guildId, userId);
   const cutoff = _cutoffDate(days);
-  const totals = {};
-  for (const [date, inner] of Object.entries(dayMap)) {
-    if (date < cutoff) continue;
-    for (const [k, ms] of Object.entries(inner)) {
-      totals[k] = (totals[k] || 0) + ms;
-    }
-  }
-  return totals;
+  const rows = sql.prepare(
+    'SELECT channel_id, SUM(total_ms) AS ms FROM activity_voice_days WHERE guild_id=? AND user_id=? AND date>=? GROUP BY channel_id'
+  ).all(guildId, userId, cutoff);
+  const out = {};
+  for (const r of rows) out[r.channel_id] = r.ms;
+  return out;
 }
 
-/** Somme { date: { key: ms } } → { key: ms } — alias */
-function _sumDays(dayMap, days) { return _sumDaysNested(dayMap, days); }
+function getVoiceRankingPeriod(guildId, days) {
+  if (!days) return getVoiceRanking(guildId);
+  const cutoff = _cutoffDate(days);
+  const rows = sql.prepare(
+    'SELECT user_id, SUM(total_ms) AS total FROM activity_voice_days WHERE guild_id=? AND date>=? GROUP BY user_id'
+  ).all(guildId, cutoff);
+  const out = {};
+  for (const r of rows) out[r.user_id] = r.total;
+  return out;
+}
 
-// ─── Historique messages par jour (pour graphiques) ─────────────────────────
+function getMessagesPeriod(guildId, userId, days) {
+  if (!days) return getMessages(guildId, userId);
+  const cutoff = _cutoffDate(days);
+  const row = sql.prepare(
+    'SELECT SUM(count) AS total FROM activity_msg_days WHERE guild_id=? AND user_id=? AND date>=?'
+  ).get(guildId, userId, cutoff);
+  return { total: row?.total || 0 };
+}
 
-/** Messages serveur des N derniers jours — retourne [{date,count}] */
+function getUserMsgTotal(guildId, userId, days) {
+  if (!days) {
+    const m = getMessages(guildId, userId);
+    return Object.values(m).reduce((a, b) => a + b, 0);
+  }
+  const cutoff = _cutoffDate(days);
+  const row = sql.prepare(
+    'SELECT SUM(count) AS total FROM activity_msg_days WHERE guild_id=? AND user_id=? AND date>=?'
+  ).get(guildId, userId, cutoff);
+  return row?.total || 0;
+}
+
+function getMessageRankingPeriod(guildId, days) {
+  if (!days) return getMessageRanking(guildId);
+  const cutoff = _cutoffDate(days);
+  const rows = sql.prepare(
+    'SELECT user_id, SUM(count) AS total FROM activity_msg_days WHERE guild_id=? AND date>=? GROUP BY user_id'
+  ).all(guildId, cutoff);
+  const out = {};
+  for (const r of rows) out[r.user_id] = r.total;
+  return out;
+}
+
+function getGamesPeriod(guildId, userId, days) {
+  if (!days) return getGames(guildId, userId);
+  const cutoff = _cutoffDate(days);
+  const rows = sql.prepare(
+    'SELECT game_name, SUM(total_ms) AS ms FROM activity_game_days WHERE guild_id=? AND user_id=? AND date>=? GROUP BY game_name'
+  ).all(guildId, userId, cutoff);
+  const out = {};
+  for (const r of rows) out[r.game_name] = r.ms;
+  return out;
+}
+
+function getGameRankingServerPeriod(guildId, days) {
+  if (!days) return getGameRankingServer(guildId);
+  const cutoff = _cutoffDate(days);
+  const rows = sql.prepare(
+    'SELECT game_name, SUM(total_ms) AS total FROM activity_game_days WHERE guild_id=? AND date>=? GROUP BY game_name'
+  ).all(guildId, cutoff);
+  const out = {};
+  for (const r of rows) out[r.game_name] = r.total;
+  return out;
+}
+
+function getPlayerRankingPeriod(guildId, days) {
+  if (!days) return getPlayerRanking(guildId);
+  const cutoff = _cutoffDate(days);
+  const rows = sql.prepare(
+    'SELECT user_id, SUM(total_ms) AS total FROM activity_game_days WHERE guild_id=? AND date>=? GROUP BY user_id'
+  ).all(guildId, cutoff);
+  const out = {};
+  for (const r of rows) out[r.user_id] = r.total;
+  return out;
+}
+
+// ─── HISTORIQUE MESSAGES ──────────────────────────────────────────────────────
+
 function getMessageHistory(guildId, days = 7) {
-  const g   = guild(guildId);
   const res = [];
   const now = new Date();
+  const rows = sql.prepare(
+    'SELECT date, count FROM activity_msg_days_server WHERE guild_id=? ORDER BY date'
+  ).all(guildId);
+  const byDate = {};
+  for (const r of rows) byDate[r.date] = r.count;
   for (let i = days - 1; i >= 0; i--) {
-    const d   = new Date(now);
+    const d = new Date(now);
     d.setDate(d.getDate() - i);
     const key = d.toISOString().slice(0, 10);
-    res.push({ date: key, count: g.msgDays[key] || 0 });
+    res.push({ date: key, count: byDate[key] || 0 });
   }
   return res;
 }
 
-/** Messages user des N derniers jours — retourne [{date,count}] */
 function getUserMessageHistory(guildId, userId, days = 7) {
-  const g   = guild(guildId);
-  const map = g.userMsgDays[userId] || {};
   const res = [];
   const now = new Date();
+  const rows = sql.prepare(
+    'SELECT date, count FROM activity_msg_days WHERE guild_id=? AND user_id=? ORDER BY date'
+  ).all(guildId, userId);
+  const byDate = {};
+  for (const r of rows) byDate[r.date] = r.count;
   for (let i = days - 1; i >= 0; i--) {
-    const d   = new Date(now);
+    const d = new Date(now);
     d.setDate(d.getDate() - i);
     const key = d.toISOString().slice(0, 10);
-    res.push({ date: key, count: map[key] || 0 });
+    res.push({ date: key, count: byDate[key] || 0 });
   }
   return res;
 }
 
-// ─── UTILITAIRES ─────────────────────────────────────────────────────────────
-/** Formate une durée en ms → "2j 4h 30m" */
+// ─── UTILITAIRES ──────────────────────────────────────────────────────────────
+
 function fmtMs(ms) {
   if (!ms || ms < 60_000) return '< 1 min';
   const s  = Math.floor(ms / 1000);
@@ -386,21 +310,20 @@ function fmtMs(ms) {
   return `${rm}m`;
 }
 
-/** Trie un objet { key: number } et retourne les N premiers */
 function topN(obj, n = 10) {
   return Object.entries(obj)
     .sort((a, b) => b[1] - a[1])
     .slice(0, n);
 }
 
-/** Barre ASCII proportionnelle */
 function asciiBar(value, max, width = 10) {
   if (max === 0) return '░'.repeat(width);
   const filled = Math.round((value / max) * width);
   return '█'.repeat(filled) + '░'.repeat(width - filled);
 }
 
-load();
+// no-op: SQLite writes are immediate (synchronous)
+function save() {}
 
 module.exports = {
   voiceStart, voiceEnd,
@@ -409,7 +332,6 @@ module.exports = {
   getVoice, getVoiceRanking,
   getMessages, getMessageRanking, getMessageHistory, getUserMessageHistory,
   getGames, getGameRankingServer, getPlayerRanking,
-  // Lectures par période
   getVoicePeriod, getVoiceRankingPeriod,
   getMessagesPeriod, getUserMsgTotal, getMessageRankingPeriod,
   getGamesPeriod, getGameRankingServerPeriod, getPlayerRankingPeriod,

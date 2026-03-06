@@ -1,69 +1,48 @@
-// logs/warningDB.js
-// Persistance JSON des avertissements (warns) par guild/utilisateur.
-// Structure :
-//   data.guilds[guildId][userId] = [{ id, reason, moderatorId, date }, ...]
+// logs/warningDB.js — SQLite
+'use strict';
 
-const fs   = require('fs');
-const path = require('path');
+const sql = require('../utils/db.js');
 
-const DB_PATH = path.join(__dirname, 'warnings_data.json');
-let data = { guilds: {} };
-
-function load() {
-  try {
-    if (fs.existsSync(DB_PATH)) data = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
-  } catch { data = { guilds: {} }; }
-}
-
-function save() {
-  try { fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2), 'utf8'); } catch {}
-}
-
-function ensureUser(guildId, userId) {
-  if (!data.guilds[guildId]) data.guilds[guildId] = {};
-  if (!data.guilds[guildId][userId]) data.guilds[guildId][userId] = [];
-  return data.guilds[guildId][userId];
-}
+const _ins = sql.prepare(
+  'INSERT INTO warnings (guild_id, user_id, moderator_id, reason, date) VALUES (?, ?, ?, ?, ?)'
+);
+const _selUser  = sql.prepare('SELECT * FROM warnings WHERE guild_id = ? AND user_id = ? ORDER BY date ASC');
+const _delUser  = sql.prepare('DELETE FROM warnings WHERE guild_id = ? AND user_id = ?');
+const _delOne   = sql.prepare('DELETE FROM warnings WHERE id = ? AND guild_id = ? AND user_id = ?');
 
 // Ajoute un warn, retourne le nouveau total
 function addWarn(guildId, userId, moderatorId, reason) {
-  const warns = ensureUser(guildId, userId);
-  const id = warns.length ? Math.max(...warns.map(w => w.id)) + 1 : 1;
-  warns.push({ id, reason, moderatorId, date: Date.now() });
-  save();
-  return warns.length;
+  _ins.run(guildId, userId, moderatorId, reason, Date.now());
+  return _selUser.all(guildId, userId).length;
 }
 
 // Retourne la liste des warns d'un user
 function getWarns(guildId, userId) {
-  ensureUser(guildId, userId);
-  return data.guilds[guildId][userId];
+  return _selUser.all(guildId, userId).map(r => ({
+    id:          r.id,
+    reason:      r.reason,
+    moderatorId: r.moderator_id,
+    date:        r.date,
+  }));
 }
 
 // Supprime tous les warns d'un user
 function clearWarns(guildId, userId) {
-  ensureUser(guildId, userId);
-  data.guilds[guildId][userId] = [];
-  save();
+  _delUser.run(guildId, userId);
 }
 
-// Supprime un warn spécifique par ID
+// Supprime un warn spécifique par ID (l'id est l'AUTOINCREMENT de SQLite)
 function removeWarn(guildId, userId, warnId) {
-  const warns = ensureUser(guildId, userId);
-  const idx = warns.findIndex(w => w.id === warnId);
-  if (idx === -1) return false;
-  warns.splice(idx, 1);
-  save();
-  return true;
+  const info = _delOne.run(warnId, guildId, userId);
+  return info.changes > 0;
 }
 
 // Retourne les warns dans une fenêtre de temps (ms depuis maintenant)
 function getWarnsInWindow(guildId, userId, windowMs) {
-  const warns = ensureUser(guildId, userId);
   const since = Date.now() - windowMs;
-  return warns.filter(w => w.date >= since);
+  return _selUser.all(guildId, userId)
+    .filter(r => r.date >= since)
+    .map(r => ({ id: r.id, reason: r.reason, moderatorId: r.moderator_id, date: r.date }));
 }
-
-load();
 
 module.exports = { addWarn, getWarns, clearWarns, removeWarn, getWarnsInWindow };

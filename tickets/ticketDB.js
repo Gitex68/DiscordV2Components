@@ -1,195 +1,167 @@
-// tickets/ticketDB.js
-// Persistance JSON en mémoire + fichier pour les données de tickets
-// Structure :
-//   data.guilds[guildId] = {
-//     config: { categoryId, logChannelId, supportRoleId, panelChannelId, tags: [], maxOpen: 3 },
-//     tickets: { [channelId]: TicketData },
-//     counter: Number
-//   }
+// tickets/ticketDB.js — SQLite
+'use strict';
 
-const fs   = require('fs');
-const path = require('path');
+const sql = require('../utils/db.js');
 
-const DB_PATH = path.join(__dirname, 'tickets_data.json');
+// ─── DEFAULT_CONFIG ───────────────────────────────────────────────────────────
 
-// ─── Chargement / sauvegarde ──────────────────────────────────────────────────
-let data = { guilds: {} };
-
-function load() {
-  try {
-    if (fs.existsSync(DB_PATH)) {
-      data = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
-    }
-  } catch (e) {
-    console.error('[TicketDB] Erreur de lecture:', e.message);
-    data = { guilds: {} };
-  }
-}
-
-function save() {
-  try {
-    fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2), 'utf8');
-  } catch (e) {
-    console.error('[TicketDB] Erreur de sauvegarde:', e.message);
-  }
-}
-
-// Valeurs par défaut complètes de la config
 const DEFAULT_CONFIG = {
-  // ── Salons ──────────────────────────────────────────────────────────────────
-  categoryId:          null,   // Catégorie où créer les tickets ouverts
-  closedCategoryId:    null,   // Catégorie où déplacer les tickets fermés (null = rester en place)
-  logChannelId:        null,   // Salon unique logs + transcripts (threads par ticket)
-  panelChannelId:      null,   // Salon du panel (info only)
-  // ── Noms des catégories (renommables) ───────────────────────────────────────
-  categoryName:        '📋 Tickets',         // Nom de la catégorie tickets ouverts
-  closedCategoryName:  '📁 Tickets Fermés',  // Nom de la catégorie tickets fermés
-  logChannelName:      '📋-ticket-logs',     // Nom du salon logs (renommable)
-  panelChannelName:    '🎫-tickets',         // Nom du salon panel (renommable)
-  // ── Rôles ───────────────────────────────────────────────────────────────────
-  supportRoleId:       null,   // Rôle staff (peut gérer tous les tickets)
-  viewerRoleId:        null,   // Rôle lecture seule (peut voir les tickets mais pas les gérer)
-  claimRoleId:         null,   // Rôle autorisé à claim les tickets (null = supportRoleId uniquement)
-  mentionRoles:        [],     // Rôles supplémentaires à ping à l'ouverture (en plus du supportRoleId)
-  // ── Limites ─────────────────────────────────────────────────────────────────
-  maxOpen:             3,      // Max tickets ouverts par utilisateur
-  autoCloseHours:      0,      // Fermeture auto après N heures d'inactivité (0 = désactivé)
-  closedDeleteHours:   24,     // Suppression auto des tickets fermés après N heures (0 = désactivé)
-  // ── Tags ────────────────────────────────────────────────────────────────────
+  categoryId:          null,
+  closedCategoryId:    null,
+  logChannelId:        null,
+  panelChannelId:      null,
+  categoryName:        '📋 Tickets',
+  closedCategoryName:  '📁 Tickets Fermés',
+  logChannelName:      '📋-ticket-logs',
+  panelChannelName:    '🎫-tickets',
+  supportRoleId:       null,
+  viewerRoleId:        null,
+  claimRoleId:         null,
+  mentionRoles:        [],
+  maxOpen:             3,
+  autoCloseHours:      0,
+  closedDeleteHours:   24,
   tags:                ['Support', 'Bug', 'Commande', 'Autre'],
-  // ── Comportement ────────────────────────────────────────────────────────────
-  pingOnOpen:          true,   // Ping le rôle support à l'ouverture
-  requireReason:       false,  // Obliger une raison à l'ouverture (modal)
-  transcriptOnClose:   true,   // Créer un thread de transcript à la fermeture
-  ticketNaming:        '{num}-{username}', // Schéma de nommage : {num}, {username}, {tag}
-  // ── Messages personnalisables ────────────────────────────────────────────────
-  welcomeMessage:      '',     // Message d'accueil dans le ticket (vide = message par défaut)
-  openMessage:         '',     // Message textuel supplémentaire envoyé dans le salon à l'ouverture
-  closeMessage:        '',     // Message de fermeture (vide = message par défaut)
-  panelTitle:          '',     // Titre du panel (vide = titre par défaut)
-  panelDescription:    '',     // Description du panel (vide = description par défaut)
-  panelMsgId:          null,   // ID du message panel (pour mise à jour auto des tags)
+  pingOnOpen:          true,
+  requireReason:       false,
+  transcriptOnClose:   true,
+  ticketNaming:        '{num}-{username}',
+  welcomeMessage:      '',
+  openMessage:         '',
+  closeMessage:        '',
+  panelTitle:          '',
+  panelDescription:    '',
+  panelMsgId:          null,
 };
 
-// Initialiser la structure d'une guilde si absente, et compléter les champs manquants
-function ensureGuild(guildId) {
-  if (!data.guilds[guildId]) {
-    data.guilds[guildId] = {
-      config:  { ...DEFAULT_CONFIG },
-      tickets: {},
-      counter: 0,
-    };
-    save();
-  } else {
-    // Migration : ajouter les nouveaux champs s'ils manquent
-    let changed = false;
-    for (const [key, val] of Object.entries(DEFAULT_CONFIG)) {
-      if (data.guilds[guildId].config[key] === undefined) {
-        data.guilds[guildId].config[key] = val;
-        changed = true;
-      }
-    }
-    if (changed) save();
-  }
-  return data.guilds[guildId];
+// ─── Prepared statements ──────────────────────────────────────────────────────
+
+const _insGuild = sql.prepare(
+  'INSERT OR IGNORE INTO ticket_config (guild_id, config_json, counter) VALUES (?, ?, 0)'
+);
+const _selGuild = sql.prepare('SELECT * FROM ticket_config WHERE guild_id = ?');
+
+const _insTick = sql.prepare(`
+  INSERT OR REPLACE INTO tickets
+    (channel_id, guild_id, id, owner_id, tag, reason, status, claimed_by,
+     added_users, opened_at, closed_at, control_msg_id, log_msg_id, log_thread_id)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`);
+const _selTick  = sql.prepare('SELECT * FROM tickets WHERE channel_id = ?');
+const _selTickG = sql.prepare('SELECT * FROM tickets WHERE guild_id = ?');
+const _delTick  = sql.prepare('DELETE FROM tickets WHERE channel_id = ?');
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function _ensureGuild(guildId) {
+  _insGuild.run(guildId, JSON.stringify({ ...DEFAULT_CONFIG }));
 }
 
-// ─── Config ───────────────────────────────────────────────────────────────────
+function _getGuildConfig(guildId) {
+  _ensureGuild(guildId);
+  const row = _selGuild.get(guildId);
+  const saved = row.config_json ? JSON.parse(row.config_json) : {};
+  // migration forward: compléter les champs manquants
+  const cfg = { ...DEFAULT_CONFIG, ...saved };
+  return { config: cfg, counter: row.counter };
+}
+
+function _saveCfg(guildId, cfg) {
+  sql.prepare('UPDATE ticket_config SET config_json = ? WHERE guild_id = ?')
+     .run(JSON.stringify(cfg), guildId);
+}
+
+function _rowToTicket(row) {
+  if (!row) return null;
+  return {
+    id:           row.id,
+    channelId:    row.channel_id,
+    guildId:      row.guild_id,
+    ownerId:      row.owner_id,
+    tag:          row.tag,
+    reason:       row.reason,
+    status:       row.status,
+    claimedBy:    row.claimed_by ?? null,
+    addedUsers:   row.added_users ? JSON.parse(row.added_users) : [],
+    openedAt:     row.opened_at,
+    closedAt:     row.closed_at ?? null,
+    controlMsgId: row.control_msg_id ?? null,
+    logMsgId:     row.log_msg_id ?? null,
+    logThreadId:  row.log_thread_id ?? null,
+  };
+}
+
+function _saveTick(t) {
+  _insTick.run(
+    t.channelId, t.guildId, t.id, t.ownerId, t.tag, t.reason,
+    t.status, t.claimedBy ?? null,
+    JSON.stringify(t.addedUsers ?? []),
+    t.openedAt, t.closedAt ?? null,
+    t.controlMsgId ?? null, t.logMsgId ?? null, t.logThreadId ?? null
+  );
+}
+
+// ─── Config API ───────────────────────────────────────────────────────────────
+
 function getConfig(guildId) {
-  return ensureGuild(guildId).config;
+  return _getGuildConfig(guildId).config;
 }
 
 function setConfig(guildId, key, value) {
-  const guild = ensureGuild(guildId);
-  guild.config[key] = value;
-  save();
+  const { config } = _getGuildConfig(guildId);
+  config[key] = value;
+  _saveCfg(guildId, config);
 }
 
 function addTag(guildId, tag) {
-  const guild = ensureGuild(guildId);
-  if (!guild.config.tags.includes(tag)) {
-    guild.config.tags.push(tag);
-    save();
+  const { config } = _getGuildConfig(guildId);
+  if (!config.tags.includes(tag)) {
+    config.tags.push(tag);
+    _saveCfg(guildId, config);
   }
 }
 
 function removeTag(guildId, tag) {
-  const guild = ensureGuild(guildId);
-  guild.config.tags = guild.config.tags.filter(t => t !== tag);
-  save();
+  const { config } = _getGuildConfig(guildId);
+  config.tags = config.tags.filter(t => t !== tag);
+  _saveCfg(guildId, config);
 }
 
-// ─── Tickets ──────────────────────────────────────────────────────────────────
-
-/**
- * @typedef {Object} TicketData
- * @property {number}   id           Numéro séquentiel du ticket
- * @property {string}   channelId    ID du salon Discord
- * @property {string}   guildId      ID de la guilde
- * @property {string}   ownerId      ID de l'utilisateur ayant ouvert le ticket
- * @property {string}   tag          Raison/catégorie du ticket
- * @property {string}   reason       Raison détaillée saisie par l'utilisateur
- * @property {'open'|'closed'} status Statut courant
- * @property {string|null} claimedBy  ID du staff qui a pris en charge
- * @property {string[]} addedUsers   IDs des utilisateurs ajoutés manuellement
- * @property {number}   openedAt     Timestamp d'ouverture (ms)
- * @property {number|null} closedAt  Timestamp de fermeture (ms)
- * @property {string}   controlMsgId ID du message de contrôle (boutons)
- * @property {string}   logMsgId     ID du message dans les logs
- */
+// ─── Tickets API ──────────────────────────────────────────────────────────────
 
 function createTicket(guildId, channelId, ownerId, tag, reason, controlMsgId = null) {
-  const guild = ensureGuild(guildId);
-  guild.counter += 1;
-  /** @type {TicketData} */
+  _ensureGuild(guildId);
+  const row = _selGuild.get(guildId);
+  const counter = (row.counter || 0) + 1;
+  sql.prepare('UPDATE ticket_config SET counter = ? WHERE guild_id = ?').run(counter, guildId);
+
   const ticket = {
-    id:           guild.counter,
-    channelId,
-    guildId,
-    ownerId,
-    tag,
-    reason,
-    status:       'open',
-    claimedBy:    null,
-    addedUsers:   [],
-    openedAt:     Date.now(),
-    closedAt:     null,
-    controlMsgId: controlMsgId,
-    logMsgId:     null,
-    logThreadId:  null,
+    id: counter, channelId, guildId, ownerId, tag, reason,
+    status: 'open', claimedBy: null, addedUsers: [],
+    openedAt: Date.now(), closedAt: null,
+    controlMsgId, logMsgId: null, logThreadId: null,
   };
-  guild.tickets[channelId] = ticket;
-  save();
+  _saveTick(ticket);
   return ticket;
 }
 
 function getTicket(guildId, channelId) {
-  const guild = ensureGuild(guildId);
-  return guild.tickets[channelId] || null;
+  return _rowToTicket(_selTick.get(channelId));
 }
 
 function getTicketByChannel(guildIdOrChannelId, channelIdArg) {
-  // Supporte (channelId) ou (guildId, channelId)
   if (channelIdArg !== undefined) {
-    const guildId = guildIdOrChannelId;
-    const channelId = channelIdArg;
-    return data.guilds[guildId]?.tickets?.[channelId] || null;
+    return _rowToTicket(_selTick.get(channelIdArg));
   }
-  // Recherche globale par channelId seul
-  const channelId = guildIdOrChannelId;
-  for (const guildId of Object.keys(data.guilds)) {
-    const t = data.guilds[guildId].tickets[channelId];
-    if (t) return t;
-  }
-  return null;
+  return _rowToTicket(_selTick.get(guildIdOrChannelId));
 }
 
 function updateTicket(guildId, channelId, changes) {
-  const guild = ensureGuild(guildId);
-  if (!guild.tickets[channelId]) return null;
-  Object.assign(guild.tickets[channelId], changes);
-  save();
-  return guild.tickets[channelId];
+  const t = _rowToTicket(_selTick.get(channelId));
+  if (!t) return null;
+  Object.assign(t, changes);
+  _saveTick(t);
+  return t;
 }
 
 function closeTicket(guildId, channelId) {
@@ -201,9 +173,7 @@ function reopenTicket(guildId, channelId) {
 }
 
 function deleteTicket(guildId, channelId) {
-  const guild = ensureGuild(guildId);
-  delete guild.tickets[channelId];
-  save();
+  _delTick.run(channelId);
 }
 
 function claimTicket(guildId, channelId, userId) {
@@ -215,35 +185,31 @@ function unclaimTicket(guildId, channelId) {
 }
 
 function addUserToTicket(guildId, channelId, userId) {
-  const guild = ensureGuild(guildId);
-  const t = guild.tickets[channelId];
+  const t = _rowToTicket(_selTick.get(channelId));
   if (!t) return null;
   if (!t.addedUsers.includes(userId)) {
     t.addedUsers.push(userId);
-    save();
+    _saveTick(t);
   }
   return t;
 }
 
 function removeUserFromTicket(guildId, channelId, userId) {
-  const guild = ensureGuild(guildId);
-  const t = guild.tickets[channelId];
+  const t = _rowToTicket(_selTick.get(channelId));
   if (!t) return null;
   t.addedUsers = t.addedUsers.filter(id => id !== userId);
-  save();
+  _saveTick(t);
   return t;
 }
 
-// Tous les tickets ouverts d'une guilde par utilisateur
 function getOpenTicketsByUser(guildId, userId) {
-  const guild = ensureGuild(guildId);
-  return Object.values(guild.tickets).filter(t => t.ownerId === userId && t.status === 'open');
+  return _selTickG.all(guildId)
+    .map(_rowToTicket)
+    .filter(t => t.ownerId === userId && t.status === 'open');
 }
 
-// Tous les tickets (filtrables)
 function getAllTickets(guildId, filter = {}) {
-  const guild = ensureGuild(guildId);
-  let tickets = Object.values(guild.tickets);
+  let tickets = _selTickG.all(guildId).map(_rowToTicket);
   if (filter.status)  tickets = tickets.filter(t => t.status  === filter.status);
   if (filter.ownerId) tickets = tickets.filter(t => t.ownerId === filter.ownerId);
   if (filter.tag)     tickets = tickets.filter(t => t.tag     === filter.tag);
@@ -251,14 +217,11 @@ function getAllTickets(guildId, filter = {}) {
 }
 
 function getCounter(guildId) {
-  return ensureGuild(guildId).counter;
+  _ensureGuild(guildId);
+  return _selGuild.get(guildId).counter;
 }
 
-// Initialisation au démarrage
-load();
-
 module.exports = {
-  load, save,
   getConfig, setConfig, addTag, removeTag,
   createTicket, getTicket, getTicketByChannel, updateTicket,
   closeTicket, reopenTicket, deleteTicket,
