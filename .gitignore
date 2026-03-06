@@ -1,0 +1,29 @@
+# ── Dépendances ───────────────────────────────────────────────────────────────
+node_modules/
+
+# ── Fichier de configuration sensible (TOKEN, CLIENT_ID, GUILD_ID) ────────────
+config.json
+
+# ── Données persistantes (générées automatiquement au lancement) ──────────────
+data/*.json
+activity/activity_data.json
+logs/logs_data.json
+logs/warnings_data.json
+tickets/tickets_data.json
+freegames/freegames_data.json
+
+# ── Fichiers de lock npm ───────────────────────────────────────────────────────
+package-lock.json
+
+# ── Fichier de backup ─────────────────────────────────────────────────────────
+commands/*.bak
+
+# ── Logs système & divers ─────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# ── Variables d'environnement (alternative à config.json) ────────────────────
+.env
+.env.*
