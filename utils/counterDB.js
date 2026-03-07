@@ -69,4 +69,7 @@ function getAllCounters() {
   return out;
 }
 
-module.exports = { getGuild, setCounter, setChannelName, removeCounter, clearGuild, getAllCounters, TYPES };
+// alias pour la compatibilité avec counterManager.js
+const allGuilds = getAllCounters;
+
+module.exports = { getGuild, setCounter, setChannelName, removeCounter, clearGuild, getAllCounters, allGuilds, TYPES };
