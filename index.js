@@ -173,19 +173,37 @@ client.on('messageCreate', async (message) => {
   // Une commande adminOnly nécessite : ManageGuild OU le rôle adminRoleId configuré
   if (command.adminOnly && message.guild) {
     if (!adminConfigDB.hasAdminAccess(message.member)) {
-      return message.reply({
+      // Supprimer le message de commande (silencieux si pas la perm)
+      message.delete().catch(() => {});
+      // Envoyer la réponse en DM pour que seul l'auteur la voit
+      message.author.send({
         components: [
           new ContainerBuilder().setAccentColor(0xed4245)
             .addTextDisplayComponents(
               new TextDisplayBuilder().setContent(
                 '# ❌ Accès refusé\n' +
                 '-# Tu n\'as pas les permissions nécessaires pour utiliser cette commande.\n\n' +
-                '> Requiert la permission **Gérer le serveur** ou le rôle admin configuré via `.aconfig`.'
+                `> Requiert la permission **Gérer le serveur** ou le rôle admin configuré via \`.aconfig\`.\n` +
+                `-# Serveur : **${message.guild.name}**`
               )
             ),
         ],
         flags: MessageFlags.IsComponentsV2,
+      }).catch(() => {
+        // DM désactivés → message temporaire dans le salon (supprimé après 5s)
+        message.channel.send({
+          components: [
+            new ContainerBuilder().setAccentColor(0xed4245)
+              .addTextDisplayComponents(
+                new TextDisplayBuilder().setContent(
+                  `# ❌ Accès refusé\n-# <@${message.author.id}> — Permission insuffisante.`
+                )
+              ),
+          ],
+          flags: MessageFlags.IsComponentsV2,
+        }).then(m => setTimeout(() => m.delete().catch(() => {}), 5000)).catch(() => {});
       });
+      return;
     }
   }
 
