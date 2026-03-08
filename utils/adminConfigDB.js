@@ -37,4 +37,17 @@ function setConfig(guildId, key, value) {
   sql.prepare('UPDATE admin_config SET ' + col + ' = ? WHERE guild_id = ?').run(value ?? null, guildId);
 }
 
-module.exports = { getConfig, setConfig, DEFAULT_CONFIG };
+/**
+ * Vérifie si un membre a accès aux commandes admin :
+ * — permission ManageGuild OU rôle adminRoleId configuré pour la guilde
+ * @param {GuildMember} member
+ */
+function hasAdminAccess(member) {
+  if (!member) return false;
+  if (member.permissions.has('ManageGuild')) return true;
+  const cfg = getConfig(member.guild.id);
+  if (cfg.adminRoleId && member.roles.cache.has(cfg.adminRoleId)) return true;
+  return false;
+}
+
+module.exports = { getConfig, setConfig, hasAdminAccess, DEFAULT_CONFIG };
