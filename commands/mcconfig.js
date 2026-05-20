@@ -9,7 +9,7 @@ const {
   StringSelectMenuBuilder, StringSelectMenuOptionBuilder,
   ModalBuilder, TextInputBuilder, TextInputStyle,
   ButtonStyle, SeparatorSpacingSize, MessageFlags,
-  ChannelType,
+  ChannelType, PermissionFlagsBits,
 } = require('discord.js');
 
 const db      = require('../utils/mcDB.js');
@@ -333,6 +333,12 @@ module.exports = {
       time:   300_000,
     });
 
+    const safeUpdateInteraction = (i, cfg = config) => {
+      const payload = { components: [getView(view, message.guild, cfg)], flags: MessageFlags.IsComponentsV2 };
+      if (i.deferred || i.replied) return i.editReply(payload).catch(() => {});
+      return i.update(payload).catch(() => {});
+    };
+
     collector.on('collect', async (i) => {
       try {
         config = db.getConfig(guildId); // recharger à chaque interaction
@@ -340,7 +346,7 @@ module.exports = {
         // ── Navigation ───────────────────────────────────────────────────────
         if (i.customId === 'mcconfig_nav') {
           view = i.values[0];
-          return i.update({ components: [getView(view, message.guild, config)], flags: MessageFlags.IsComponentsV2 });
+          return safeUpdateInteraction(i, config);
         }
 
         // ── Toggle activer/désactiver ────────────────────────────────────────
@@ -349,7 +355,7 @@ module.exports = {
           config = db.getConfig(guildId);
           if (config.enabled) manager.startTracker(guildId);
           else                 manager.stopTracker(guildId);
-          return i.update({ components: [getView(view, message.guild, config)], flags: MessageFlags.IsComponentsV2 });
+          return safeUpdateInteraction(i, config);
         }
 
         // ── Force refresh panel ──────────────────────────────────────────────
@@ -381,27 +387,27 @@ module.exports = {
           db.set(guildId, 'checkInterval', val);
           config = db.getConfig(guildId);
           if (config.enabled) manager.startTracker(guildId); // redémarre avec le nouvel intervalle
-          return i.update({ components: [getView(view, message.guild, config)], flags: MessageFlags.IsComponentsV2 });
+          return safeUpdateInteraction(i, config);
         }
 
         // ── Effacer serveur ──────────────────────────────────────────────────
         if (i.customId === 'mcconfig_clear_server') {
           db.setMany(guildId, { serverIp: '', statusMessageId: null });
           manager.stopTracker(guildId);
-          return i.update({ components: [getView(view, message.guild, config)], flags: MessageFlags.IsComponentsV2 });
+          return safeUpdateInteraction(i, db.getConfig(guildId));
         }
 
         // ── Effacer salon ────────────────────────────────────────────────────
         if (i.customId === 'mcconfig_clear_channel') {
           db.setMany(guildId, { statusChannelId: null, statusMessageId: null });
           manager.stopTracker(guildId);
-          return i.update({ components: [getView(view, message.guild, config)], flags: MessageFlags.IsComponentsV2 });
+          return safeUpdateInteraction(i, db.getConfig(guildId));
         }
 
         // ── Effacer rôle ─────────────────────────────────────────────────────
         if (i.customId === 'mcconfig_clear_role') {
           db.set(guildId, 'notificationRoleId', null);
-          return i.update({ components: [getView(view, message.guild, config)], flags: MessageFlags.IsComponentsV2 });
+          return safeUpdateInteraction(i, db.getConfig(guildId));
         }
 
         // ── Toggles notifications ─────────────────────────────────────────────
@@ -414,7 +420,7 @@ module.exports = {
         if (TOGGLES[i.customId]) {
           const key = TOGGLES[i.customId];
           db.set(guildId, key, !config[key]);
-          return i.update({ components: [getView(view, message.guild, config)], flags: MessageFlags.IsComponentsV2 });
+          return safeUpdateInteraction(i, db.getConfig(guildId));
         }
 
         // ── Modal : adresse serveur ──────────────────────────────────────────
