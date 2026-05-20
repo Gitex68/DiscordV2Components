@@ -149,7 +149,7 @@ async function startClientWithRetry(clientInstance) {
 
       const delayMs = Math.min(maxDelayMs, baseDelayMs * (2 ** (attempt - 1)));
       console.error(`[Network] Login failed (attempt ${attempt}/${totalAttempts}): ${error.message}`);
-      console.error(`[Network] Retrying (${attempt}/${maxRetries}) in ${Math.round(delayMs / 1000)}s...`);
+      console.error(`[Network] Retrying for attempt ${attempt + 1}/${totalAttempts} in ${Math.round(delayMs / 1000)}s...`);
       await new Promise(resolve => setTimeout(resolve, delayMs));
     }
   }
