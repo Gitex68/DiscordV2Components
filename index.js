@@ -27,6 +27,7 @@ const {
 const { token } = require('./config.json');
 const fs = require('fs');
 const path = require('path');
+const dns = require('dns');
 
 // ─── Ticket system ────────────────────────────────────────────────────────────
 const db      = require('./tickets/ticketDB.js');
@@ -64,6 +65,94 @@ const mcDB      = require('./utils/mcDB.js');
 const lastVoiceChannel = new Map();
 
 const PREFIX = '.';
+
+const TRANSIENT_NETWORK_CODES = new Set([
+  'EAI_AGAIN',
+  'ENOTFOUND',
+  'ENETUNREACH',
+  'ETIMEDOUT',
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'ECONNABORTED',
+  'EHOSTUNREACH',
+  'UND_ERR_CONNECT_TIMEOUT',
+]);
+
+function isTransientNetworkError(error) {
+  if (!error) return false;
+
+  if (TRANSIENT_NETWORK_CODES.has(error.code)) return true;
+
+  const msg = String(error.message || '');
+  if (
+    msg.includes('EAI_AGAIN') ||
+    msg.includes('ENOTFOUND') ||
+    msg.includes('ENETUNREACH') ||
+    msg.includes('ETIMEDOUT') ||
+    msg.includes('Connect Timeout Error')
+  ) {
+    return true;
+  }
+
+  return isTransientNetworkError(error.cause);
+}
+
+function parsePositiveInt(value, fallback) {
+  const n = Number.parseInt(value, 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+function configureNetwork() {
+  const resultOrder = process.env.DISCORD_DNS_RESULT_ORDER || 'ipv4first';
+  if (typeof dns.setDefaultResultOrder === 'function') {
+    try {
+      dns.setDefaultResultOrder(resultOrder);
+      console.log(`[Network] DNS result order: ${resultOrder}`);
+    } catch (e) {
+      console.warn(`[Network] DNS result order ignored (${resultOrder}): ${e.message}`);
+    }
+  }
+
+  const rawServers = process.env.DISCORD_DNS_SERVERS;
+  if (!rawServers) return;
+
+  const servers = rawServers
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  if (!servers.length) return;
+
+  try {
+    dns.setServers(servers);
+    console.log(`[Network] DNS resolvers: ${servers.join(', ')}`);
+  } catch (e) {
+    console.warn(`[Network] Invalid DISCORD_DNS_SERVERS value: ${e.message}`);
+  }
+}
+
+async function startClientWithRetry(clientInstance) {
+  configureNetwork();
+
+  const maxRetries = parsePositiveInt(process.env.DISCORD_LOGIN_MAX_RETRIES, 30);
+  const baseDelayMs = parsePositiveInt(process.env.DISCORD_LOGIN_RETRY_BASE_MS, 5000);
+  const maxDelayMs = parsePositiveInt(process.env.DISCORD_LOGIN_RETRY_MAX_MS, 60000);
+
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await clientInstance.login(token);
+      return;
+    } catch (error) {
+      if (!isTransientNetworkError(error)) throw error;
+      if (attempt > maxRetries) throw error;
+
+      const delayMs = Math.min(maxDelayMs, baseDelayMs * (2 ** (attempt - 1)));
+      console.error(`[Network] Login failed (attempt ${attempt}/${maxRetries + 1}): ${error.message}`);
+      console.error(`[Network] Retrying in ${Math.round(delayMs / 1000)}s...`);
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+}
 
 // ─── Client ───────────────────────────────────────────────────────────────────
 const client = new Client({
@@ -1552,6 +1641,11 @@ client.on('autoModerationActionExecution', exec => logManager.onAutoModerationAc
 // Avancé
 client.on('webhookUpdate', ch   => logManager.onWebhookUpdate(ch).catch(() => {}));
 client.on('userUpdate',    (o, n) => logManager.onUserUpdate(o, n).catch(() => {}));
+client.on('error',         err => console.error('[Discord] Client error:', err.message));
+client.on('shardError',    err => console.error('[Discord] Shard error:', err.message));
 
 // ─── Connexion ────────────────────────────────────────────────────────────────
-client.login(token);
+startClientWithRetry(client).catch(error => {
+  console.error('[Startup] Unable to connect the bot:', error);
+  process.exitCode = 1;
+});

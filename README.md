@@ -152,6 +152,21 @@ npm run deploy
 npm start
 ```
 
+En cas de réseau instable / DNS intermittent (ex: `EAI_AGAIN discord.com`), vous pouvez forcer des résolveurs DNS et laisser le bot réessayer automatiquement la connexion :
+
+```bash
+DISCORD_DNS_SERVERS=1.1.1.1,8.8.8.8 \
+DISCORD_DNS_RESULT_ORDER=ipv4first \
+npm start
+```
+
+Variables disponibles :
+- `DISCORD_DNS_SERVERS` : liste de DNS séparés par virgules.
+- `DISCORD_DNS_RESULT_ORDER` : ordre DNS Node.js (`ipv4first`, `verbatim`, ...).
+- `DISCORD_LOGIN_MAX_RETRIES` : nombre max de tentatives de reconnexion au démarrage (défaut: `30`).
+- `DISCORD_LOGIN_RETRY_BASE_MS` : délai initial entre tentatives (défaut: `5000`).
+- `DISCORD_LOGIN_RETRY_MAX_MS` : délai max entre tentatives (défaut: `60000`).
+
 ---
 
 ## 📁 Structure du projet
