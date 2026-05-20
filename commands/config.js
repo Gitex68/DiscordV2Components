@@ -43,7 +43,7 @@ const MODULES = [
     color:   0x5865f2,
     cmd:     '.sconfig',
     aliases: ['.scfg', '.counters', '.statsconfig'],
-    desc:    'Salons vocaux dont le nom affiche une valeur en temps réel (membres, bots, boosts, vocal, en ligne).',
+    desc:    'Configure des salons vocaux affichant en temps réel le nombre de membres, bots, boosts, personnes en ligne ou en vocal.',
     openId:  'config_open_sconfig',
     openCmd: 'sconfig',
   },
@@ -54,7 +54,7 @@ const MODULES = [
     color:   0xfee75c,
     cmd:     '.lconfig',
     aliases: ['.lc', '.logconfig'],
-    desc:    'Enregistre les événements du serveur : kicks, bans, messages supprimés, éditions, et plus.',
+    desc:    'Active l\'enregistrement automatique des événements serveur : kicks, bans, messages supprimés, modifications et plus encore.',
     openId:  'config_open_lconfig',
     openCmd: 'lconfig',
   },
@@ -65,7 +65,7 @@ const MODULES = [
     color:   0x57f287,
     cmd:     '.tconfig',
     aliases: ['.tc', '.ticketconfig'],
-    desc:    'Système de tickets de support : catégorie, rôles staff, messages, tags, comportements.',
+    desc:    'Configure le système de support par tickets : catégorie dédiée, rôles staff, messages personnalisés, tags et comportements.',
     openId:  'config_open_tconfig',
     openCmd: 'tconfig',
   },
@@ -76,7 +76,7 @@ const MODULES = [
     color:   0x2a2a2a,
     cmd:     '.fgconfig',
     aliases: ['.fg', '.freeconfig', '.jeux'],
-    desc:    'Annonces automatiques des jeux gratuits Epic Games & Steam dans un salon dédié.',
+    desc:    'Active les annonces automatiques des jeux gratuits disponibles sur Epic Games et Steam dans un salon dédié.',
     openId:  'config_open_fgconfig',
     openCmd: 'fgconfig',
   },
@@ -87,18 +87,18 @@ const MODULES = [
     color:   0x5865f2,
     cmd:     '.aconfig',
     aliases: ['.acfg', '.adminconfig', '.admincfg'],
-    desc:    'Rôle d\'accès aux commandes admin, méthode de mute (timeout / rôle custom).',
+    desc:    'Définit le rôle d\'accès aux commandes d\'administration et configure la méthode de mute (timeout Discord ou rôle personnalisé).',
     openId:  'config_open_aconfig',
     openCmd: 'aconfig',
   },
   {
     key:     'tempvoice',
     emoji:   '🎙️',
-    label:   'Salons Vocaux Temp',
+    label:   'Salons vocaux temporaires',
     color:   0x5865f2,
     cmd:     '.vcconfig',
     aliases: ['.vc', '.voiceconfig', '.tempvoice'],
-    desc:    'Salons vocaux temporaires : hub, catégorie, limites, renommage, verrouillage.',
+    desc:    'Configure les salons vocaux temporaires : hub de création, catégorie de destination, limites d\'utilisateurs, renommage et permissions.',
     openId:  'config_open_vcconfig',
     openCmd: 'vcconfig',
   },
@@ -109,18 +109,18 @@ const MODULES = [
     color:   0x57f287,
     cmd:     '.rconfig',
     aliases: ['.rc', '.rulesconfig', '.reglement'],
-    desc:    'Système de règlement : texte éditable, rôle de restriction au join, validation par bouton.',
+    desc:    'Configure le système de règlement interactif : texte personnalisable, rôle de restriction automatique et validation par bouton.',
     openId:  'config_open_rconfig',
     openCmd: 'rconfig',
   },
   {
     key:     'minecraft',
     emoji:   '⛏️',
-    label:   'Minecraft Status',
+    label:   'Statut Minecraft',
     color:   0x2ecc71,
     cmd:     '.mcconfig',
     aliases: ['.mc', '.minecraft', '.mcstatus'],
-    desc:    'Suivi en temps réel d\'un serveur Minecraft : statut, joueurs, MOTD, notifications automatiques.',
+    desc:    'Configure le suivi en temps réel d\'un serveur Minecraft : statut de connexion, joueurs en ligne, MOTD et notifications automatiques.',
     openId:  'config_open_mcconfig',
     openCmd: 'mcconfig',
   },
@@ -649,7 +649,7 @@ function buildTempVoicePage(guild, user) {
       `**👥 Limite :** ${cfg.allowLimit ? '✅' : '❌'} · ` +
       `**🔒 Verrou :** ${cfg.allowLock ? '✅' : '❌'}`;
   } else {
-    detailLines = '> *Module Salons Vocaux Temp non disponible*';
+    detailLines = '> *Module Salons vocaux temporaires non disponible*';
   }
 
   const c = new ContainerBuilder().setAccentColor(m.color);
@@ -664,7 +664,7 @@ function buildTempVoicePage(guild, user) {
       .setThumbnailAccessory(
         new ThumbnailBuilder()
           .setURL('https://cdn.discordapp.com/embed/avatars/2.png')
-          .setDescription('Salons Vocaux Temp')
+          .setDescription('Salons vocaux temporaires')
       )
   );
   c.addSeparatorComponents(sep(true));
@@ -765,7 +765,7 @@ function buildRulesPage(guild, user) {
   return c;
 }
 
-// ─── Page 8 — Minecraft Status ────────────────────────────────────────────────
+// ─── Page 8 — Statut Minecraft ────────────────────────────────────────────────
 
 function buildMCPage(guild, user) {
   const m = MODULES[7]; // minecraft
@@ -797,7 +797,7 @@ function buildMCPage(guild, user) {
       .setThumbnailAccessory(
         new ThumbnailBuilder()
           .setURL('https://cdn.discordapp.com/embed/avatars/2.png')
-          .setDescription('Minecraft Status')
+          .setDescription('Statut Minecraft')
       )
   );
   c.addSeparatorComponents(sep(true));
@@ -851,7 +851,7 @@ function getPage(idx, guild, user) {
 module.exports = {
   name:        'config',
   aliases:     ['cfg', 'conf', 'configuration', 'setup', 'panel'],
-  description: 'Dashboard centralisé de configuration (compteurs, logs, tickets)',
+  description: 'Dashboard centralisé et convivial de configuration des modules du serveur',
   adminOnly:   true,
 
   async execute(message, args, client) {

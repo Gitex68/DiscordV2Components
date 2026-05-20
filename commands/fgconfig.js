@@ -25,11 +25,11 @@ function cm(id) { return id ? `<#${id}>` : '*Non défini*'; }
 function rm(id) { return id ? `<@&${id}>` : '*Non défini*'; }
 
 const VIEWS = [
-  { v: 'overview',  label: 'Vue d\'ensemble', emoji: '📊', desc: 'Statut global du système' },
-  { v: 'channels',  label: 'Salons & Rôle',   emoji: '📁', desc: 'Salon d\'annonces, rôle ping' },
-  { v: 'sources',   label: 'Sources',          emoji: '🏪', desc: 'Epic Games, Steam…' },
-  { v: 'behavior',  label: 'Comportement',     emoji: '⚙️', desc: 'Intervalle, affichage' },
-  { v: 'actions',   label: 'Actions',          emoji: '🛠️', desc: 'Test, reset, vérification' },
+  { v: 'overview',  label: 'Vue d\'ensemble', emoji: '📊', desc: 'Aperçu global de la configuration' },
+  { v: 'channels',  label: 'Salons & Rôle',   emoji: '📁', desc: 'Salon d\'annonces et rôle de ping' },
+  { v: 'sources',   label: 'Sources',          emoji: '🏪', desc: 'Epic Games, Steam et autres sources' },
+  { v: 'behavior',  label: 'Comportement',     emoji: '⚙️', desc: 'Intervalle de vérification et affichage' },
+  { v: 'actions',   label: 'Actions',          emoji: '🛠️', desc: 'Test manuel, reset et vérification' },
 ];
 
 function buildNavRow(current) {
@@ -331,19 +331,19 @@ function buildView(view, guild) {
 const MODALS = {
   fgconfig_modal_set_channel: {
     title: '📢 Salon d\'annonces',
-    inputs: [{ id: 'channel', label: 'ID ou #mention du salon', placeholder: '#jeux-gratuits ou 1234567890', required: true }],
+    inputs: [{ id: 'channel', label: 'ID ou #mention du salon', placeholder: 'Ex : #jeux-gratuits ou 123456789012345678', required: true }],
   },
   fgconfig_modal_set_role: {
     title: '🔔 Rôle de ping',
-    inputs: [{ id: 'role', label: 'ID ou @rôle', placeholder: '1234567890 ou @JeuxGratuits', required: true }],
+    inputs: [{ id: 'role', label: 'ID ou @rôle', placeholder: 'Ex : @JeuxGratuits ou 123456789012345678', required: true }],
   },
   fgconfig_modal_set_access_role: {
     title: '🔒 Rôle d\'accès au salon',
-    inputs: [{ id: 'role', label: 'ID ou @rôle', placeholder: '1234567890 ou @Joueurs', required: true }],
+    inputs: [{ id: 'role', label: 'ID ou @rôle', placeholder: 'Ex : @Joueurs ou 123456789012345678', required: true }],
   },
   fgconfig_modal_interval: {
     title: '⏱️ Intervalle de vérification',
-    inputs: [{ id: 'interval', label: 'Intervalle en heures (1–168)', placeholder: '6', required: true }],
+    inputs: [{ id: 'interval', label: 'Intervalle en heures (1–168)', placeholder: 'Ex : 6, 12, 24 (recommandé : 6h)', required: true }],
   },
 };
 

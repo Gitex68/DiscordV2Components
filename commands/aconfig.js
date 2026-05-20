@@ -22,9 +22,9 @@ function si(v)  { return v ? '✅' : '❌'; }
 function rm(id) { return id ? `<@&${id}>` : '*Non défini*'; }
 
 const VIEWS = [
-  { v: 'overview',    label: 'Vue d\'ensemble', emoji: '📊', desc: 'Statut global de la config admin' },
-  { v: 'access',      label: 'Accès admin',      emoji: '🔑', desc: 'Rôle d\'accès aux commandes admin' },
-  { v: 'moderation',  label: 'Modération',        emoji: '⚖️', desc: 'Mute custom, rôle mute, etc.' },
+  { v: 'overview',    label: 'Vue d\'ensemble', emoji: '📊', desc: 'Aperçu global de la configuration admin' },
+  { v: 'access',      label: 'Accès admin',      emoji: '🔑', desc: 'Rôle donnant accès aux commandes d\'admin' },
+  { v: 'moderation',  label: 'Modération',        emoji: '⚖️', desc: 'Méthode de mute et rôle personnalisé' },
 ];
 
 function buildNavRow(current) {

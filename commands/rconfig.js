@@ -25,9 +25,9 @@ function cm(id) { return id ? `<#${id}>` : '*Non défini*'; }
 function rm(id) { return id ? `<@&${id}>` : '*Non défini*'; }
 
 const VIEWS = [
-  { v: 'overview', label: 'Vue d\'ensemble', emoji: '📊', desc: 'Statut global du système'            },
-  { v: 'setup',    label: 'Configuration',   emoji: '🔧', desc: 'Salon, rôles, configuration'        },
-  { v: 'rules',    label: 'Règlement',       emoji: '📝', desc: 'Texte du règlement et panel Discord' },
+  { v: 'overview', label: 'Vue d\'ensemble', emoji: '📊', desc: 'Aperçu global de la configuration'            },
+  { v: 'setup',    label: 'Configuration',   emoji: '🔧', desc: 'Salon du règlement et configuration des rôles' },
+  { v: 'rules',    label: 'Règlement',       emoji: '📝', desc: 'Texte du règlement et envoi du panel' },
 ];
 
 function buildNavRow(current) {

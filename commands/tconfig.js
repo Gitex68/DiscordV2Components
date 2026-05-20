@@ -23,14 +23,14 @@ function rm(id)     { return id ? `<@&${id}>` : '*Non défini*'; }
 function preview(s) { return s?.trim() ? `> ${s.replace(/\n/g, '\n> ').slice(0, 200)}` : '*Message par défaut*'; }
 
 const VIEWS = [
-  { v: 'overview',  label: 'Vue d\'ensemble',        emoji: '📊', desc: 'Statut global' },
-  { v: 'channels',  label: 'Salons & Catégorie',     emoji: '📁', desc: 'Catégorie, logs, panel' },
-  { v: 'roles',     label: 'Rôle & Limites',         emoji: '🛡️', desc: 'Rôle staff, max tickets' },
-  { v: 'tags',      label: 'Tags / Raisons',         emoji: '🏷️', desc: 'Raisons d\'ouverture' },
-  { v: 'messages',  label: 'Messages',               emoji: '💬', desc: 'Accueil, fermeture, panel' },
-  { v: 'behavior',  label: 'Comportement',           emoji: '⚙️', desc: 'Ping, raison, transcript' },
-  { v: 'advanced',  label: 'Avancé',                 emoji: '🔧', desc: 'Nommage, auto-close, catégories' },
-  { v: 'actions',   label: 'Actions & Outils',       emoji: '🛠️', desc: 'Setup, reset, panel' },
+  { v: 'overview',  label: 'Vue d\'ensemble',        emoji: '📊', desc: 'Aperçu global de la configuration' },
+  { v: 'channels',  label: 'Salons & Catégorie',     emoji: '📁', desc: 'Catégorie tickets, salon logs et panel' },
+  { v: 'roles',     label: 'Rôle & Limites',         emoji: '🛡️', desc: 'Rôle staff et nombre max de tickets' },
+  { v: 'tags',      label: 'Tags / Raisons',         emoji: '🏷️', desc: 'Raisons d\'ouverture prédéfinies' },
+  { v: 'messages',  label: 'Messages',               emoji: '💬', desc: 'Messages d\'accueil, fermeture et panel' },
+  { v: 'behavior',  label: 'Comportement',           emoji: '⚙️', desc: 'Ping auto, raison et transcripts' },
+  { v: 'advanced',  label: 'Avancé',                 emoji: '🔧', desc: 'Nommage, fermeture auto et catégories' },
+  { v: 'actions',   label: 'Actions & Outils',       emoji: '🛠️', desc: 'Setup rapide, reset et envoi du panel' },
 ];
 
 function buildNavRow(current) {
@@ -145,7 +145,7 @@ function buildChannels(config) {
     new ButtonBuilder().setCustomId('tconfig_rename_logs').setLabel('Salon logs').setStyle(ButtonStyle.Primary).setEmoji('✏️'),
     new ButtonBuilder().setCustomId('tconfig_rename_panel').setLabel('Salon panel').setStyle(ButtonStyle.Primary).setEmoji('✏️'),
   ));
-  c.addTextDisplayComponents(new TextDisplayBuilder().setContent('-# expire dans 5 min'));
+  c.addTextDisplayComponents(new TextDisplayBuilder().setContent('-# Utilise le menu pour naviguer · expire dans 5 min'));
   return c;
 }
 
@@ -194,7 +194,7 @@ function buildRoles(config) {
     new ButtonBuilder().setCustomId('tconfig_clear_claim').setLabel('Retirer claim').setStyle(ButtonStyle.Danger).setEmoji('🗑️'),
     new ButtonBuilder().setCustomId('tconfig_clear_mention').setLabel('Vider pings').setStyle(ButtonStyle.Danger).setEmoji('🗑️'),
   ));
-  c.addTextDisplayComponents(new TextDisplayBuilder().setContent('-# expire dans 5 min'));
+  c.addTextDisplayComponents(new TextDisplayBuilder().setContent('-# Utilise le menu pour naviguer · expire dans 5 min'));
   return c;
 }
 
@@ -243,7 +243,7 @@ function buildTags(config) {
     new ButtonBuilder().setCustomId('tconfig_tags_reset').setLabel('Restaurer défaut').setStyle(ButtonStyle.Secondary).setEmoji('🔄'),
     new ButtonBuilder().setCustomId('tconfig_tags_clear').setLabel('Tout supprimer').setStyle(ButtonStyle.Danger).setEmoji('🗑️'),
   ));
-  c.addTextDisplayComponents(new TextDisplayBuilder().setContent('-# expire dans 5 min'));
+  c.addTextDisplayComponents(new TextDisplayBuilder().setContent('-# Utilise le menu pour naviguer · expire dans 5 min'));
   return c;
 }
 
@@ -294,7 +294,7 @@ function buildMessages(config) {
     new ButtonBuilder().setCustomId('tconfig_msg_close_reset').setLabel('Reset fermeture').setStyle(ButtonStyle.Danger).setEmoji('🗑️'),
     new ButtonBuilder().setCustomId('tconfig_msg_panel_reset').setLabel('Reset panel').setStyle(ButtonStyle.Danger).setEmoji('🗑️'),
   ));
-  c.addTextDisplayComponents(new TextDisplayBuilder().setContent('-# expire dans 5 min'));
+  c.addTextDisplayComponents(new TextDisplayBuilder().setContent('-# Utilise le menu pour naviguer · expire dans 5 min'));
   return c;
 }
 
@@ -337,7 +337,7 @@ function buildBehavior(config) {
       .setStyle(config.transcriptOnClose ? ButtonStyle.Secondary : ButtonStyle.Success)
       .setEmoji(config.transcriptOnClose ? '📄' : '📋'),
   ));
-  c.addTextDisplayComponents(new TextDisplayBuilder().setContent('-# expire dans 5 min'));
+  c.addTextDisplayComponents(new TextDisplayBuilder().setContent('-# Utilise le menu pour naviguer · expire dans 5 min'));
   return c;
 }
 
@@ -404,7 +404,7 @@ function buildAdvanced(config) {
     new ButtonBuilder().setCustomId('tconfig_set_naming').setLabel('Modifier schéma nommage').setStyle(ButtonStyle.Secondary).setEmoji('✏️'),
     new ButtonBuilder().setCustomId('tconfig_set_closedcat').setLabel('Catégorie fermés').setStyle(ButtonStyle.Secondary).setEmoji('📂'),
   ));
-  c.addTextDisplayComponents(new TextDisplayBuilder().setContent('-# expire dans 5 min'));
+  c.addTextDisplayComponents(new TextDisplayBuilder().setContent('-# Utilise le menu pour naviguer · expire dans 5 min'));
   return c;
 }
 
@@ -432,7 +432,7 @@ function buildActions(config) {
     new ButtonBuilder().setCustomId('tconfig_setup_go').setLabel('Setup complet').setStyle(ButtonStyle.Success).setEmoji('✨'),
     new ButtonBuilder().setCustomId('tconfig_reset_go').setLabel('Réinitialiser tout').setStyle(ButtonStyle.Danger).setEmoji('♻️'),
   ));
-  c.addTextDisplayComponents(new TextDisplayBuilder().setContent('-# expire dans 5 min'));
+  c.addTextDisplayComponents(new TextDisplayBuilder().setContent('-# Utilise le menu pour naviguer · expire dans 5 min'));
   return c;
 }
 
