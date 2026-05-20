@@ -8,7 +8,7 @@ const dns  = require('dns').promises;
 const db   = require('./mcDB.js');
 const {
   ContainerBuilder, SectionBuilder, TextDisplayBuilder, ThumbnailBuilder,
-  SeparatorBuilder, SeparatorSpacingSize, MessageFlags,
+  SeparatorBuilder, SeparatorSpacingSize, MessageFlags, AttachmentBuilder,
 } = require('discord.js');
 
 // ─── Protocole SLP ────────────────────────────────────────────────────────────
@@ -208,18 +208,52 @@ function sep(large = false) {
 
 // Icône de fallback : tête de creeper Minecraft (Wikimedia Commons)
 const MC_FALLBACK_ICON = 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Minecraft_logo.svg/320px-Minecraft_logo.svg.png';
+const MAX_FAVICON_BASE64_LENGTH = 1_000_000; // ~750KB décodé (très au-dessus d'un favicon normal)
+const MAX_FAVICON_BYTES = 750_000;
+
+function resolveFaviconUrl(rawFavicon, filesOut) {
+  if (typeof rawFavicon !== 'string' || !rawFavicon) return MC_FALLBACK_ICON;
+  if (!rawFavicon.startsWith('data:image/')) return rawFavicon;
+
+  const m = rawFavicon.match(/^data:(image\/(?:png|jpeg|gif|webp));base64,([A-Za-z0-9+/=]+)$/i);
+  if (!m) return MC_FALLBACK_ICON;
+
+  if (!Array.isArray(filesOut)) return MC_FALLBACK_ICON;
+
+  const mime = m[1].toLowerCase();
+  const ext = (
+    mime === 'image/png'  ? 'png'  :
+    mime === 'image/jpeg' ? 'jpg'  :
+    mime === 'image/gif'  ? 'gif'  :
+    mime === 'image/webp' ? 'webp' : 'png'
+  );
+  const name = `mc-favicon.${ext}`;
+  const base64Data = m[2].replace(/\s/g, '');
+  if (!base64Data || base64Data.length > MAX_FAVICON_BASE64_LENGTH) return MC_FALLBACK_ICON;
+
+  try {
+    const buffer = Buffer.from(base64Data, 'base64');
+    if (!buffer.length || buffer.length > MAX_FAVICON_BYTES) return MC_FALLBACK_ICON;
+    filesOut.push(new AttachmentBuilder(buffer, { name }));
+    return `attachment://${name}`;
+  } catch {
+    return MC_FALLBACK_ICON;
+  }
+}
 
 /**
  * Construit le panel CV2 complet pour un statut donné.
  * @param {object} status  résultat de pingMinecraft (ou null si hors ligne)
  * @param {object} cfg     config depuis mcDB
  * @param {string} updatedAt  horodatage formaté
+ * @param {AttachmentBuilder[]} [filesOut] pièces jointes à envoyer avec le panel
  */
-function buildStatusPanel(status, cfg, updatedAt) {
+function buildStatusPanel(status, cfg, updatedAt, filesOut) {
   const c = new ContainerBuilder();
 
   // Favicon : priorité au ping live, sinon favicon stocké en DB, sinon fallback MC
-  const faviconUrl = status?.favicon ?? cfg.faviconData ?? MC_FALLBACK_ICON;
+  const rawFavicon = status?.favicon ?? cfg.faviconData ?? MC_FALLBACK_ICON;
+  const faviconUrl = resolveFaviconUrl(rawFavicon, filesOut);
 
   if (status?.online) {
     c.setAccentColor(0x57f287); // vert
@@ -447,16 +481,19 @@ class MCManager {
 
   // ── Panel ───────────────────────────────────────────────────────────────────
   async _updatePanel(guildId, guild, channel, cfg, status, ts) {
-    const panel = buildStatusPanel(status, cfg, ts);
+    const files = [];
+    const panel = buildStatusPanel(status, cfg, ts, files);
+    const payload = {
+      components: [panel],
+      flags: MessageFlags.IsComponentsV2,
+      ...(files.length > 0 ? { files } : {}),
+    };
 
     // 1. Essayer d'éditer le message connu par son ID
     if (cfg.statusMessageId) {
       const msg = await channel.messages.fetch(cfg.statusMessageId).catch(() => null);
       if (msg) {
-        await msg.edit({
-          components: [panel],
-          flags: MessageFlags.IsComponentsV2,
-        }).catch(() => null);
+        await msg.edit(payload).catch(() => null);
         return;
       }
       // Message introuvable (supprimé ou bot redémarré depuis longtemps) → réinitialiser
@@ -472,10 +509,7 @@ class MCManager {
           msg.flags?.has?.('IsComponentsV2') &&
           msg.components?.length > 0
         ) {
-          const edited = await msg.edit({
-            components: [panel],
-            flags: MessageFlags.IsComponentsV2,
-          }).catch(() => null);
+          const edited = await msg.edit(payload).catch(() => null);
           if (edited) {
             db.set(guildId, 'statusMessageId', msg.id);
             return;
@@ -486,10 +520,7 @@ class MCManager {
 
     // 3. Aucun message existant trouvé → en créer un nouveau
     await this._cleanOldPanels(channel);
-    const newMsg = await channel.send({
-      components: [panel],
-      flags: MessageFlags.IsComponentsV2,
-    }).catch(() => null);
+    const newMsg = await channel.send(payload).catch(() => null);
     if (newMsg) {
       db.set(guildId, 'statusMessageId', newMsg.id);
     }
