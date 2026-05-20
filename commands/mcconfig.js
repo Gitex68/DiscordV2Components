@@ -333,7 +333,7 @@ module.exports = {
       time:   300_000,
     });
 
-    const upd = (i, cfg = config) => {
+    const safeUpdateInteraction = (i, cfg = config) => {
       const payload = { components: [getView(view, message.guild, cfg)], flags: MessageFlags.IsComponentsV2 };
       if (i.deferred || i.replied) return i.editReply(payload).catch(() => {});
       return i.update(payload).catch(() => {});
@@ -346,7 +346,7 @@ module.exports = {
         // ── Navigation ───────────────────────────────────────────────────────
         if (i.customId === 'mcconfig_nav') {
           view = i.values[0];
-          return upd(i, config);
+          return safeUpdateInteraction(i, config);
         }
 
         // ── Toggle activer/désactiver ────────────────────────────────────────
@@ -355,7 +355,7 @@ module.exports = {
           config = db.getConfig(guildId);
           if (config.enabled) manager.startTracker(guildId);
           else                 manager.stopTracker(guildId);
-          return upd(i, config);
+          return safeUpdateInteraction(i, config);
         }
 
         // ── Force refresh panel ──────────────────────────────────────────────
@@ -387,27 +387,27 @@ module.exports = {
           db.set(guildId, 'checkInterval', val);
           config = db.getConfig(guildId);
           if (config.enabled) manager.startTracker(guildId); // redémarre avec le nouvel intervalle
-          return upd(i, config);
+          return safeUpdateInteraction(i, config);
         }
 
         // ── Effacer serveur ──────────────────────────────────────────────────
         if (i.customId === 'mcconfig_clear_server') {
           db.setMany(guildId, { serverIp: '', statusMessageId: null });
           manager.stopTracker(guildId);
-          return upd(i, db.getConfig(guildId));
+          return safeUpdateInteraction(i, db.getConfig(guildId));
         }
 
         // ── Effacer salon ────────────────────────────────────────────────────
         if (i.customId === 'mcconfig_clear_channel') {
           db.setMany(guildId, { statusChannelId: null, statusMessageId: null });
           manager.stopTracker(guildId);
-          return upd(i, db.getConfig(guildId));
+          return safeUpdateInteraction(i, db.getConfig(guildId));
         }
 
         // ── Effacer rôle ─────────────────────────────────────────────────────
         if (i.customId === 'mcconfig_clear_role') {
           db.set(guildId, 'notificationRoleId', null);
-          return upd(i, db.getConfig(guildId));
+          return safeUpdateInteraction(i, db.getConfig(guildId));
         }
 
         // ── Toggles notifications ─────────────────────────────────────────────
@@ -420,7 +420,7 @@ module.exports = {
         if (TOGGLES[i.customId]) {
           const key = TOGGLES[i.customId];
           db.set(guildId, key, !config[key]);
-          return upd(i, db.getConfig(guildId));
+          return safeUpdateInteraction(i, db.getConfig(guildId));
         }
 
         // ── Modal : adresse serveur ──────────────────────────────────────────
