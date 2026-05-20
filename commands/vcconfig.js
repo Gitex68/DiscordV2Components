@@ -242,19 +242,19 @@ function buildView(view, guild) {
 const MODALS = {
   vcconfig_modal_set_hub: {
     title: '🚪 Salon hub vocal',
-    inputs: [{ id: 'hub', label: 'ID ou #mention du salon vocal', placeholder: '1234567890', required: true }],
+    inputs: [{ id: 'hub', label: 'ID ou #mention du salon vocal', placeholder: 'Ex : #créer-un-salon ou 123456789012345678', required: true }],
   },
   vcconfig_modal_set_category: {
     title: '📁 Catégorie des salons temp',
-    inputs: [{ id: 'category', label: 'ID de la catégorie', placeholder: '1234567890', required: true }],
+    inputs: [{ id: 'category', label: 'ID de la catégorie', placeholder: 'Ex : 123456789012345678', required: true }],
   },
   vcconfig_modal_limit: {
     title: '👥 Limite par défaut',
-    inputs: [{ id: 'limit', label: 'Limite (0 = illimitée, max 99)', placeholder: '0', required: true }],
+    inputs: [{ id: 'limit', label: 'Limite (0 = illimitée, max 99)', placeholder: 'Ex : 0 (illimité), 5, 10', required: true }],
   },
   vcconfig_modal_template: {
     title: '✏️ Template de nom',
-    inputs: [{ id: 'template', label: 'Template (max 50 car.)', placeholder: '🎮 {username}', required: true }],
+    inputs: [{ id: 'template', label: 'Template (max 50 car.)', placeholder: 'Ex : 🎮 {username}, Salon de {displayname}', required: true }],
   },
 };
 

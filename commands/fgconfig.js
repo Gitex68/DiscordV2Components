@@ -331,19 +331,19 @@ function buildView(view, guild) {
 const MODALS = {
   fgconfig_modal_set_channel: {
     title: '📢 Salon d\'annonces',
-    inputs: [{ id: 'channel', label: 'ID ou #mention du salon', placeholder: '#jeux-gratuits ou 1234567890', required: true }],
+    inputs: [{ id: 'channel', label: 'ID ou #mention du salon', placeholder: 'Ex : #jeux-gratuits ou 123456789012345678', required: true }],
   },
   fgconfig_modal_set_role: {
     title: '🔔 Rôle de ping',
-    inputs: [{ id: 'role', label: 'ID ou @rôle', placeholder: '1234567890 ou @JeuxGratuits', required: true }],
+    inputs: [{ id: 'role', label: 'ID ou @rôle', placeholder: 'Ex : @JeuxGratuits ou 123456789012345678', required: true }],
   },
   fgconfig_modal_set_access_role: {
     title: '🔒 Rôle d\'accès au salon',
-    inputs: [{ id: 'role', label: 'ID ou @rôle', placeholder: '1234567890 ou @Joueurs', required: true }],
+    inputs: [{ id: 'role', label: 'ID ou @rôle', placeholder: 'Ex : @Joueurs ou 123456789012345678', required: true }],
   },
   fgconfig_modal_interval: {
     title: '⏱️ Intervalle de vérification',
-    inputs: [{ id: 'interval', label: 'Intervalle en heures (1–168)', placeholder: '6', required: true }],
+    inputs: [{ id: 'interval', label: 'Intervalle en heures (1–168)', placeholder: 'Ex : 6, 12, 24 (recommandé : 6h)', required: true }],
   },
 };
 
