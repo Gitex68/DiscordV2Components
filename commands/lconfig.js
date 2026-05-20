@@ -23,12 +23,12 @@ const CAT_KEYS = Object.keys(EVENT_CATEGORIES);
 
 // ─── Navigation ──────────────────────────────────────────────────────────────
 const VIEWS = [
-  { v: 'overview',  label: 'Vue d\'ensemble', emoji: '📊', desc: 'Statut global des logs' },
+  { v: 'overview',  label: 'Vue d\'ensemble', emoji: '📊', desc: 'Aperçu global des logs activés' },
   ...CAT_KEYS.map(k => ({
     v:     `cat_${k}`,
     label: EVENT_CATEGORIES[k].label,
     emoji: EVENT_CATEGORIES[k].label.split(' ')[0],
-    desc:  `Configurer les logs "${EVENT_CATEGORIES[k].label}"`,
+    desc:  `Configuration des logs "${EVENT_CATEGORIES[k].label}"`,
   })),
 ];
 

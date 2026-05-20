@@ -25,11 +25,11 @@ function cm(id) { return id ? `<#${id}>` : '*Non défini*'; }
 function rm(id) { return id ? `<@&${id}>` : '*Non défini*'; }
 
 const VIEWS = [
-  { v: 'overview',  label: 'Vue d\'ensemble', emoji: '📊', desc: 'Statut global du système' },
-  { v: 'channels',  label: 'Salons & Rôle',   emoji: '📁', desc: 'Salon d\'annonces, rôle ping' },
-  { v: 'sources',   label: 'Sources',          emoji: '🏪', desc: 'Epic Games, Steam…' },
-  { v: 'behavior',  label: 'Comportement',     emoji: '⚙️', desc: 'Intervalle, affichage' },
-  { v: 'actions',   label: 'Actions',          emoji: '🛠️', desc: 'Test, reset, vérification' },
+  { v: 'overview',  label: 'Vue d\'ensemble', emoji: '📊', desc: 'Aperçu global de la configuration' },
+  { v: 'channels',  label: 'Salons & Rôle',   emoji: '📁', desc: 'Salon d\'annonces et rôle de ping' },
+  { v: 'sources',   label: 'Sources',          emoji: '🏪', desc: 'Epic Games, Steam et autres sources' },
+  { v: 'behavior',  label: 'Comportement',     emoji: '⚙️', desc: 'Intervalle de vérification et affichage' },
+  { v: 'actions',   label: 'Actions',          emoji: '🛠️', desc: 'Test manuel, reset et vérification' },
 ];
 
 function buildNavRow(current) {

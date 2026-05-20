@@ -26,12 +26,12 @@ const manager = require('../utils/counterManager.js');
 // ─── Données statiques ────────────────────────────────────────────────────────
 
 const VIEWS = [
-  { v: 'overview', label: "Vue d'ensemble", emoji: '📊', desc: 'Statut global des compteurs' },
-  { v: 'members',  label: 'Membres',        emoji: '👥', desc: 'Total membres (bots exclus)' },
-  { v: 'online',   label: 'En ligne',       emoji: '🟢', desc: 'Membres connectés (bots exclus)' },
-  { v: 'voice',    label: 'En vocal',       emoji: '🔊', desc: 'Membres en salon vocal (bots exclus)' },
-  { v: 'bots',     label: 'Bots',           emoji: '🤖', desc: 'Nombre de bots du serveur' },
-  { v: 'boosts',   label: 'Boosts',         emoji: '✨', desc: 'Boosts actifs du serveur' },
+  { v: 'overview', label: "Vue d'ensemble", emoji: '📊', desc: 'Aperçu global des compteurs actifs' },
+  { v: 'members',  label: 'Membres',        emoji: '👥', desc: 'Compteur total de membres (sans bots)' },
+  { v: 'online',   label: 'En ligne',       emoji: '🟢', desc: 'Compteur de membres connectés (sans bots)' },
+  { v: 'voice',    label: 'En vocal',       emoji: '🔊', desc: 'Compteur de membres en vocal (sans bots)' },
+  { v: 'bots',     label: 'Bots',           emoji: '🤖', desc: 'Compteur du nombre total de bots' },
+  { v: 'boosts',   label: 'Boosts',         emoji: '✨', desc: 'Compteur des boosts actifs du serveur' },
 ];
 
 const PRESETS = {

@@ -24,9 +24,9 @@ function si(v)  { return v ? '✅' : '❌'; }
 function cm(id) { return id ? `<#${id}>` : '*Non défini*'; }
 
 const VIEWS = [
-  { v: 'overview', label: 'Vue d\'ensemble', emoji: '📊', desc: 'Statut global du système'        },
-  { v: 'setup',    label: 'Configuration',   emoji: '🔧', desc: 'Hub vocal, catégorie, création' },
-  { v: 'options',  label: 'Options',          emoji: '⚙️', desc: 'Limite, template, permissions' },
+  { v: 'overview', label: 'Vue d\'ensemble', emoji: '📊', desc: 'Aperçu global de la configuration'        },
+  { v: 'setup',    label: 'Configuration',   emoji: '🔧', desc: 'Hub vocal, catégorie et salon de création' },
+  { v: 'options',  label: 'Options',          emoji: '⚙️', desc: 'Limite, template de nom et permissions' },
 ];
 
 function buildNavRow(current) {

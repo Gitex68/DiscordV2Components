@@ -23,14 +23,14 @@ function rm(id)     { return id ? `<@&${id}>` : '*Non défini*'; }
 function preview(s) { return s?.trim() ? `> ${s.replace(/\n/g, '\n> ').slice(0, 200)}` : '*Message par défaut*'; }
 
 const VIEWS = [
-  { v: 'overview',  label: 'Vue d\'ensemble',        emoji: '📊', desc: 'Statut global' },
-  { v: 'channels',  label: 'Salons & Catégorie',     emoji: '📁', desc: 'Catégorie, logs, panel' },
-  { v: 'roles',     label: 'Rôle & Limites',         emoji: '🛡️', desc: 'Rôle staff, max tickets' },
-  { v: 'tags',      label: 'Tags / Raisons',         emoji: '🏷️', desc: 'Raisons d\'ouverture' },
-  { v: 'messages',  label: 'Messages',               emoji: '💬', desc: 'Accueil, fermeture, panel' },
-  { v: 'behavior',  label: 'Comportement',           emoji: '⚙️', desc: 'Ping, raison, transcript' },
-  { v: 'advanced',  label: 'Avancé',                 emoji: '🔧', desc: 'Nommage, auto-close, catégories' },
-  { v: 'actions',   label: 'Actions & Outils',       emoji: '🛠️', desc: 'Setup, reset, panel' },
+  { v: 'overview',  label: 'Vue d\'ensemble',        emoji: '📊', desc: 'Aperçu global de la configuration' },
+  { v: 'channels',  label: 'Salons & Catégorie',     emoji: '📁', desc: 'Catégorie tickets, salon logs et panel' },
+  { v: 'roles',     label: 'Rôle & Limites',         emoji: '🛡️', desc: 'Rôle staff et nombre max de tickets' },
+  { v: 'tags',      label: 'Tags / Raisons',         emoji: '🏷️', desc: 'Raisons d\'ouverture prédéfinies' },
+  { v: 'messages',  label: 'Messages',               emoji: '💬', desc: 'Messages d\'accueil, fermeture et panel' },
+  { v: 'behavior',  label: 'Comportement',           emoji: '⚙️', desc: 'Ping auto, raison et transcripts' },
+  { v: 'advanced',  label: 'Avancé',                 emoji: '🔧', desc: 'Nommage, fermeture auto et catégories' },
+  { v: 'actions',   label: 'Actions & Outils',       emoji: '🛠️', desc: 'Setup rapide, reset et envoi du panel' },
 ];
 
 function buildNavRow(current) {
