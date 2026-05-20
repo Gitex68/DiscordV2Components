@@ -38,7 +38,9 @@ const YTDLP_BIN = path.join(
   path.dirname(require.resolve('yt-dlp-exec/package.json')),
   'bin', 'yt-dlp'
 );
+const DEFAULT_SEARCH_LIMIT = 5;
 const MAX_YTDLP_SEARCH_LIMIT = 10;
+const MAX_YTDLP_QUERY_LENGTH = 200;
 
 // ─── Helper URL YouTube ───────────────────────────────────────────────────────
 function isYouTubeUrl(str) {
@@ -218,12 +220,12 @@ function _normalizeYtDlpEntry(entry, requestedBy = '') {
 
 async function _searchTracksWithYtDlp(query, limit = 5, requestedBy = '') {
   try {
-    const safeLimit = Math.max(1, Math.min(MAX_YTDLP_SEARCH_LIMIT, Number(limit) || 5));
+    const safeLimit = Math.max(1, Math.min(MAX_YTDLP_SEARCH_LIMIT, Number(limit) || DEFAULT_SEARCH_LIMIT));
     const safeQuery = String(query || '')
       .replace(/[\r\n\t]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim()
-      .slice(0, 200);
+      .slice(0, MAX_YTDLP_QUERY_LENGTH);
     if (!safeQuery) return [];
 
     const info = await ytdlp(`ytsearch${safeLimit}:${safeQuery}`, {
