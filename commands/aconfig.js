@@ -235,6 +235,12 @@ module.exports = {
       time:   300_000,
     });
 
+    const upd = (i, guild) => {
+      const payload = { components: [buildView(view, guild)], flags: MessageFlags.IsComponentsV2 };
+      if (i.deferred || i.replied) return i.editReply(payload).catch(() => {});
+      return i.update(payload).catch(() => {});
+    };
+
     collector.on('collect', async (i) => {
       try {
         const guild = message.guild;
@@ -242,27 +248,27 @@ module.exports = {
         // ── Navigation ───────────────────────────────────────────────────────
         if (i.customId === 'aconfig_nav') {
           view = i.values[0];
-          return i.update({ components: [buildView(view, guild)], flags: MessageFlags.IsComponentsV2 });
+          return upd(i, guild);
         }
 
         // ── Toggle méthode de mute ───────────────────────────────────────────
         if (i.customId === 'aconfig_mute_mode_timeout') {
           adminCfgDB.set(guild.id, 'muteMode', 'timeout');
-          return i.update({ components: [buildView(view, guild)], flags: MessageFlags.IsComponentsV2 });
+          return upd(i, guild);
         }
         if (i.customId === 'aconfig_mute_mode_role') {
           adminCfgDB.set(guild.id, 'muteMode', 'role');
-          return i.update({ components: [buildView(view, guild)], flags: MessageFlags.IsComponentsV2 });
+          return upd(i, guild);
         }
 
         // ── Supprimer rôles ──────────────────────────────────────────────────
         if (i.customId === 'aconfig_clear_admin_role') {
           adminCfgDB.set(guild.id, 'adminRoleId', null);
-          return i.update({ components: [buildView(view, guild)], flags: MessageFlags.IsComponentsV2 });
+          return upd(i, guild);
         }
         if (i.customId === 'aconfig_clear_mute_role') {
           adminCfgDB.set(guild.id, 'muteRoleId', null);
-          return i.update({ components: [buildView(view, guild)], flags: MessageFlags.IsComponentsV2 });
+          return upd(i, guild);
         }
 
         // ── Modals ───────────────────────────────────────────────────────────

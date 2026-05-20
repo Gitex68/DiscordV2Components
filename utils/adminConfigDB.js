@@ -50,4 +50,4 @@ function hasAdminAccess(member) {
   return false;
 }
 
-module.exports = { getConfig, setConfig, hasAdminAccess, DEFAULT_CONFIG };
+module.exports = { getConfig, setConfig, set: setConfig, hasAdminAccess, DEFAULT_CONFIG };
