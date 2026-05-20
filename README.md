@@ -163,7 +163,7 @@ npm start
 Variables disponibles :
 - `DISCORD_DNS_SERVERS` : liste de DNS séparés par virgules.
 - `DISCORD_DNS_RESULT_ORDER` : ordre DNS Node.js (`ipv4first`, `verbatim`, ...).
-- `DISCORD_LOGIN_MAX_RETRIES` : nombre max de tentatives de reconnexion au démarrage (défaut: `30`).
+- `DISCORD_LOGIN_MAX_RETRIES` : nombre max de **retries après l'essai initial** (défaut: `30`, soit jusqu'à `31` tentatives totales).
 - `DISCORD_LOGIN_RETRY_BASE_MS` : délai initial entre tentatives (défaut: `5000`).
 - `DISCORD_LOGIN_RETRY_MAX_MS` : délai max entre tentatives (défaut: `60000`).
 

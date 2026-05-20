@@ -137,6 +137,7 @@ async function startClientWithRetry(clientInstance) {
   const maxRetries = parsePositiveInt(process.env.DISCORD_LOGIN_MAX_RETRIES, 30);
   const baseDelayMs = parsePositiveInt(process.env.DISCORD_LOGIN_RETRY_BASE_MS, 5000);
   const maxDelayMs = parsePositiveInt(process.env.DISCORD_LOGIN_RETRY_MAX_MS, 60000);
+  const totalAttempts = maxRetries + 1;
 
   for (let attempt = 1; ; attempt++) {
     try {
@@ -147,8 +148,8 @@ async function startClientWithRetry(clientInstance) {
       if (attempt > maxRetries) throw error;
 
       const delayMs = Math.min(maxDelayMs, baseDelayMs * (2 ** (attempt - 1)));
-      console.error(`[Network] Login failed (attempt ${attempt}/${maxRetries + 1}): ${error.message}`);
-      console.error(`[Network] Retrying in ${Math.round(delayMs / 1000)}s...`);
+      console.error(`[Network] Login failed (attempt ${attempt}/${totalAttempts}): ${error.message}`);
+      console.error(`[Network] Retrying (${attempt}/${maxRetries}) in ${Math.round(delayMs / 1000)}s...`);
       await new Promise(resolve => setTimeout(resolve, delayMs));
     }
   }
