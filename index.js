@@ -78,23 +78,30 @@ const TRANSIENT_NETWORK_CODES = new Set([
   'UND_ERR_CONNECT_TIMEOUT',
 ]);
 
-function isTransientNetworkError(error) {
-  if (!error) return false;
+function isTransientNetworkError(initialError) {
+  const seen = new Set();
+  let error = initialError;
 
-  if (TRANSIENT_NETWORK_CODES.has(error.code)) return true;
+  while (error && !seen.has(error)) {
+    seen.add(error);
 
-  const msg = String(error.message || '');
-  if (
-    msg.includes('EAI_AGAIN') ||
-    msg.includes('ENOTFOUND') ||
-    msg.includes('ENETUNREACH') ||
-    msg.includes('ETIMEDOUT') ||
-    msg.includes('Connect Timeout Error')
-  ) {
-    return true;
+    if (TRANSIENT_NETWORK_CODES.has(error.code)) return true;
+
+    const msg = String(error.message || '');
+    if (
+      msg.includes('EAI_AGAIN') ||
+      msg.includes('ENOTFOUND') ||
+      msg.includes('ENETUNREACH') ||
+      msg.includes('ETIMEDOUT') ||
+      msg.includes('Connect Timeout Error')
+    ) {
+      return true;
+    }
+
+    error = error.cause;
   }
 
-  return isTransientNetworkError(error.cause);
+  return false;
 }
 
 function parsePositiveInt(value, fallback) {
@@ -138,8 +145,9 @@ async function startClientWithRetry(clientInstance) {
   const baseDelayMs = parsePositiveInt(process.env.DISCORD_LOGIN_RETRY_BASE_MS, 5000);
   const maxDelayMs = parsePositiveInt(process.env.DISCORD_LOGIN_RETRY_MAX_MS, 60000);
   const totalAttempts = maxRetries + 1;
+  const maxExponent = Math.max(0, Math.ceil(Math.log2(maxDelayMs / Math.max(1, baseDelayMs))));
 
-  for (let attempt = 1; ; attempt++) {
+  for (let attempt = 1; attempt <= totalAttempts; attempt++) {
     try {
       await clientInstance.login(token);
       return;
@@ -147,7 +155,7 @@ async function startClientWithRetry(clientInstance) {
       if (!isTransientNetworkError(error)) throw error;
       if (attempt >= totalAttempts) throw error;
 
-      const safeExponent = Math.min(attempt - 1, 16);
+      const safeExponent = Math.min(attempt - 1, maxExponent);
       const delayMs = Math.min(maxDelayMs, baseDelayMs * (2 ** safeExponent));
       const nextAttempt = attempt + 1;
       console.error(`[Network] Login failed (attempt ${attempt}/${totalAttempts}): ${error.message}`);
