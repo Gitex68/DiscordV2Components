@@ -145,11 +145,13 @@ async function startClientWithRetry(clientInstance) {
       return;
     } catch (error) {
       if (!isTransientNetworkError(error)) throw error;
-      if (attempt > maxRetries) throw error;
+      if (attempt >= totalAttempts) throw error;
 
-      const delayMs = Math.min(maxDelayMs, baseDelayMs * (2 ** (attempt - 1)));
+      const safeExponent = Math.min(attempt - 1, 16);
+      const delayMs = Math.min(maxDelayMs, baseDelayMs * (2 ** safeExponent));
+      const nextAttempt = attempt + 1;
       console.error(`[Network] Login failed (attempt ${attempt}/${totalAttempts}): ${error.message}`);
-      console.error(`[Network] Retrying for attempt ${attempt + 1}/${totalAttempts} in ${Math.round(delayMs / 1000)}s...`);
+      console.error(`[Network] Retrying for attempt ${nextAttempt}/${totalAttempts} in ${Math.round(delayMs / 1000)}s...`);
       await new Promise(resolve => setTimeout(resolve, delayMs));
     }
   }
