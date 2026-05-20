@@ -94,7 +94,7 @@ const MODULES = [
   {
     key:     'tempvoice',
     emoji:   '🎙️',
-    label:   'Salons Vocaux Temp',
+    label:   'Salons vocaux temporaires',
     color:   0x5865f2,
     cmd:     '.vcconfig',
     aliases: ['.vc', '.voiceconfig', '.tempvoice'],
@@ -116,7 +116,7 @@ const MODULES = [
   {
     key:     'minecraft',
     emoji:   '⛏️',
-    label:   'Minecraft Status',
+    label:   'Statut Minecraft',
     color:   0x2ecc71,
     cmd:     '.mcconfig',
     aliases: ['.mc', '.minecraft', '.mcstatus'],
@@ -649,7 +649,7 @@ function buildTempVoicePage(guild, user) {
       `**👥 Limite :** ${cfg.allowLimit ? '✅' : '❌'} · ` +
       `**🔒 Verrou :** ${cfg.allowLock ? '✅' : '❌'}`;
   } else {
-    detailLines = '> *Module Salons Vocaux Temp non disponible*';
+    detailLines = '> *Module Salons vocaux temporaires non disponible*';
   }
 
   const c = new ContainerBuilder().setAccentColor(m.color);
@@ -664,7 +664,7 @@ function buildTempVoicePage(guild, user) {
       .setThumbnailAccessory(
         new ThumbnailBuilder()
           .setURL('https://cdn.discordapp.com/embed/avatars/2.png')
-          .setDescription('Salons Vocaux Temp')
+          .setDescription('Salons vocaux temporaires')
       )
   );
   c.addSeparatorComponents(sep(true));
@@ -765,7 +765,7 @@ function buildRulesPage(guild, user) {
   return c;
 }
 
-// ─── Page 8 — Minecraft Status ────────────────────────────────────────────────
+// ─── Page 8 — Statut Minecraft ────────────────────────────────────────────────
 
 function buildMCPage(guild, user) {
   const m = MODULES[7]; // minecraft
@@ -797,7 +797,7 @@ function buildMCPage(guild, user) {
       .setThumbnailAccessory(
         new ThumbnailBuilder()
           .setURL('https://cdn.discordapp.com/embed/avatars/2.png')
-          .setDescription('Minecraft Status')
+          .setDescription('Statut Minecraft')
       )
   );
   c.addSeparatorComponents(sep(true));
@@ -851,7 +851,7 @@ function getPage(idx, guild, user) {
 module.exports = {
   name:        'config',
   aliases:     ['cfg', 'conf', 'configuration', 'setup', 'panel'],
-  description: 'Dashboard centralisé de configuration (compteurs, logs, tickets)',
+  description: 'Dashboard centralisé et convivial de configuration des modules du serveur',
   adminOnly:   true,
 
   async execute(message, args, client) {
