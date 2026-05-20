@@ -208,12 +208,14 @@ function sep(large = false) {
 
 // Icône de fallback : tête de creeper Minecraft (Wikimedia Commons)
 const MC_FALLBACK_ICON = 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Minecraft_logo.svg/320px-Minecraft_logo.svg.png';
+const MAX_FAVICON_BASE64_LENGTH = 1_000_000; // ~750KB décodé (très au-dessus d'un favicon normal)
+const MAX_FAVICON_BYTES = 750_000;
 
 function resolveFaviconUrl(rawFavicon, filesOut) {
   if (typeof rawFavicon !== 'string' || !rawFavicon) return MC_FALLBACK_ICON;
   if (!rawFavicon.startsWith('data:image/')) return rawFavicon;
 
-  const m = rawFavicon.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  const m = rawFavicon.match(/^data:(image\/(?:png|jpeg|gif|webp));base64,([A-Za-z0-9+/=]+)$/i);
   if (!m) return MC_FALLBACK_ICON;
 
   if (!Array.isArray(filesOut)) return MC_FALLBACK_ICON;
@@ -226,10 +228,12 @@ function resolveFaviconUrl(rawFavicon, filesOut) {
     mime === 'image/webp' ? 'webp' : 'png'
   );
   const name = `mc-favicon.${ext}`;
+  const base64Data = m[2].replace(/\s/g, '');
+  if (!base64Data || base64Data.length > MAX_FAVICON_BASE64_LENGTH) return MC_FALLBACK_ICON;
 
   try {
-    const buffer = Buffer.from(m[2], 'base64');
-    if (!buffer.length) return MC_FALLBACK_ICON;
+    const buffer = Buffer.from(base64Data, 'base64');
+    if (!buffer.length || buffer.length > MAX_FAVICON_BYTES) return MC_FALLBACK_ICON;
     filesOut.push(new AttachmentBuilder(buffer, { name }));
     return `attachment://${name}`;
   } catch {
