@@ -38,6 +38,7 @@ const YTDLP_BIN = path.join(
   path.dirname(require.resolve('yt-dlp-exec/package.json')),
   'bin', 'yt-dlp'
 );
+const MAX_YTDLP_SEARCH_LIMIT = 10;
 
 // ─── Helper URL YouTube ───────────────────────────────────────────────────────
 function isYouTubeUrl(str) {
@@ -169,21 +170,75 @@ async function resolveTrack(query, requestedBy) {
       };
     }
 
-    // ── Mots-clés → play-dl search ─────────────────────────────────────────
-    const results = await playdl.search(query, { source: { youtube: 'video' }, limit: 1 });
-    if (!results?.length) return null;
-    const r = results[0];
-    return {
-      title:        r.title           || 'Sans titre',
-      url:          r.url,
-      duration:     r.durationRaw     || '?:??',
-      durationSecs: r.durationInSec   || 0,
-      thumbnail:    r.thumbnails?.[0]?.url || '',
-      requestedBy,
-    };
+    // ── Mots-clés → play-dl search (fallback yt-dlp si YouTube casse) ───────
+    let results = [];
+    try {
+      results = await playdl.search(query, { source: { youtube: 'video' }, limit: 1 });
+    } catch (e) {
+      console.error('[Music] resolveTrack play-dl error:', e.message);
+    }
+
+    if (results?.length) {
+      const r = results[0];
+      return {
+        title:        r.title           || 'Sans titre',
+        url:          r.url,
+        duration:     r.durationRaw     || '?:??',
+        durationSecs: r.durationInSec   || 0,
+        thumbnail:    r.thumbnails?.[0]?.url || '',
+        requestedBy,
+      };
+    }
+
+    const fallback = await _searchTracksWithYtDlp(query, 1, requestedBy);
+    return fallback[0] || null;
   } catch (e) {
     console.error('[Music] resolveTrack error:', e.message);
     return null;
+  }
+}
+
+function _normalizeYtDlpEntry(entry, requestedBy = '') {
+  if (!entry) return null;
+  const rawUrl = entry.webpage_url || entry.url || '';
+  const url = /^https?:\/\//.test(rawUrl)
+    ? rawUrl
+    : (entry.id ? `https://www.youtube.com/watch?v=${entry.id}` : '');
+  if (!url) return null;
+  const durationSecs = Number(entry.duration) || 0;
+  return {
+    title:        entry.title || 'Sans titre',
+    url,
+    duration:     _formatDuration(durationSecs),
+    durationSecs,
+    thumbnail:    entry.thumbnail || '',
+    requestedBy,
+  };
+}
+
+async function _searchTracksWithYtDlp(query, limit = 5, requestedBy = '') {
+  try {
+    const safeLimit = Math.max(1, Math.min(MAX_YTDLP_SEARCH_LIMIT, Number(limit) || 5));
+    const safeQuery = String(query || '')
+      .replace(/[\r\n\t]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 200);
+    if (!safeQuery) return [];
+
+    const info = await ytdlp(`ytsearch${safeLimit}:${safeQuery}`, {
+      'dump-single-json': true,
+      'no-warnings': true,
+      'skip-download': true,
+    });
+    const entries = Array.isArray(info?.entries) ? info.entries : (info ? [info] : []);
+    return entries
+      .map(e => _normalizeYtDlpEntry(e, requestedBy))
+      .filter(Boolean)
+      .slice(0, safeLimit);
+  } catch (e) {
+    console.error('[Music] yt-dlp fallback search error:', e.message);
+    return [];
   }
 }
 
@@ -195,15 +250,25 @@ async function resolveTrack(query, requestedBy) {
  */
 async function searchTracks(query, limit = 5) {
   try {
-    const results = await playdl.search(query, { source: { youtube: 'video' }, limit });
-    return results.map(r => ({
-      title: r.title,
-      url: r.url,
-      duration: r.durationRaw || '?:??',
-      durationSecs: r.durationInSec || 0,
-      thumbnail: r.thumbnails?.[0]?.url || '',
-      requestedBy: '',
-    }));
+    let results = [];
+    try {
+      results = await playdl.search(query, { source: { youtube: 'video' }, limit });
+    } catch (e) {
+      console.error('[Music] searchTracks play-dl error:', e.message);
+    }
+
+    if (results?.length) {
+      return results.map(r => ({
+        title: r.title || 'Sans titre',
+        url: r.url,
+        duration: r.durationRaw || '?:??',
+        durationSecs: r.durationInSec || 0,
+        thumbnail: r.thumbnails?.[0]?.url || '',
+        requestedBy: '',
+      }));
+    }
+
+    return _searchTracksWithYtDlp(query, limit, '');
   } catch (e) {
     console.error('[Music] searchTracks error:', e.message);
     return [];
